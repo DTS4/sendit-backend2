@@ -23,7 +23,8 @@ def seed_data():
             destination='Los Angeles',
             weight=5.0,
             description='Fragile items',
-            user_id=user1.id
+            user_id=user1.id,
+            cost=150.0  
         )
         db.session.add(parcel1)
         db.session.commit()
