@@ -8,7 +8,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)  # Increased length to 256
     role = db.Column(db.String(20), nullable=False, default='user')  # 'user' or 'admin'
     parcels = db.relationship('Parcel', backref='user', lazy=True)
 
@@ -29,7 +29,7 @@ class Parcel(db.Model):
     weight = db.Column(db.Float, nullable=False)
     description = db.Column(db.Text, nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    cost = db.Column(db.Float, nullable=True)  # Added cost field
+    cost = db.Column(db.Float, nullable=True) 
 
     def to_dict(self):
         return {
