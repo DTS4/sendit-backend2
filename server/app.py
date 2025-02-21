@@ -6,6 +6,7 @@ from models import db, User, Parcel
 from functools import wraps
 import jwt
 import datetime
+import requests  # For Google Maps API requests
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -27,6 +28,19 @@ def token_required(f):
             abort(401, description="Token is invalid!")
         return f(current_user, *args, **kwargs)
     return decorated
+
+# Helper function to calculate cost using Google Maps Distance Matrix API
+def calculate_cost(pickup, destination, weight):
+    url = f"https://maps.googleapis.com/maps/api/distancematrix/json?units=metric&origins={pickup}&destinations={destination}&key={app.config['GOOGLE_MAPS_API_KEY']}"
+    response = requests.get(url)
+    data = response.json()
+
+    if data['status'] != 'OK':
+        return None
+
+    distance = data['rows'][0]['elements'][0]['distance']['value']  # Distance in meters
+    cost = (distance / 1000) * 1.5 * weight  # $1.5 per km per kg
+    return round(cost, 2)
 
 # Routes
 @app.route('/')
@@ -58,13 +72,18 @@ def get_parcels(current_user):
 @token_required
 def create_parcel(current_user):
     data = request.get_json()
+    cost = calculate_cost(data['pickup_location'], data['destination'], data['weight'])
+    if cost is None:
+        abort(400, description="Failed to calculate cost. Check pickup and destination locations.")
+
     parcel = Parcel(
         tracking_id=data['tracking_id'],
         pickup_location=data['pickup_location'],
         destination=data['destination'],
         weight=data['weight'],
         description=data.get('description', ''),
-        user_id=current_user.id
+        user_id=current_user.id,
+        cost=cost  # Add cost to the parcel
     )
     db.session.add(parcel)
     db.session.commit()
