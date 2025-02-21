@@ -29,6 +29,7 @@ class Parcel(db.Model):
     weight = db.Column(db.Float, nullable=False)
     description = db.Column(db.Text, nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    cost = db.Column(db.Float, nullable=True)  # Added cost field
 
     def to_dict(self):
         return {
@@ -40,5 +41,6 @@ class Parcel(db.Model):
             'current_location': self.current_location,
             'weight': self.weight,
             'description': self.description,
-            'user_id': self.user_id
+            'user_id': self.user_id,
+            'cost': self.cost  
         }
