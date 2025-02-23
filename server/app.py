@@ -62,10 +62,18 @@ def login():
 @app.route('/parcels', methods=['GET'])
 @token_required
 def get_parcels(current_user):
-    if current_user.role == 'admin':
-        parcels = Parcel.query.all()
-    else:
-        parcels = Parcel.query.filter_by(user_id=current_user.id).all()
+    status = request.args.get('status')
+    user_id = request.args.get('user_id')
+
+    query = Parcel.query
+    if current_user.role != 'admin':
+        query = query.filter_by(user_id=current_user.id)
+    if status:
+        query = query.filter_by(status=status)
+    if user_id and current_user.role == 'admin':
+        query = query.filter_by(user_id=user_id)
+
+    parcels = query.all()
     return jsonify([parcel.to_dict() for parcel in parcels])
 
 @app.route('/parcels', methods=['POST'])
