@@ -91,7 +91,8 @@ def create_parcel(current_user):
         weight=data['weight'],
         description=data.get('description', ''),
         user_id=current_user.id,
-        cost=cost  # Add cost to the parcel
+        cost=cost,
+        delivery_speed=data.get('delivery_speed') 
     )
     db.session.add(parcel)
     db.session.commit()
