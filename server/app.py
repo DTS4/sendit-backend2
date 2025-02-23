@@ -129,5 +129,23 @@ def delete_parcel(current_user, parcel_id):
     db.session.commit()
     return '', 204
 
+@app.route('/stats', methods=['GET'])
+@token_required
+def get_stats(current_user):
+    if current_user.role != 'admin':
+        abort(403, description="You do not have permission to view stats")
+
+    total_deliveries = Parcel.query.count()
+    pending_orders = Parcel.query.filter_by(status='Pending').count()
+    in_transit_orders = Parcel.query.filter_by(status='In Transit').count()
+    delivered_orders = Parcel.query.filter_by(status='Delivered').count()
+
+    return jsonify({
+        'total_deliveries': total_deliveries,
+        'pending_orders': pending_orders,
+        'in_transit_orders': in_transit_orders,
+        'delivered_orders': delivered_orders
+    })
+
 if __name__ == '__main__':
     app.run(debug=True)
