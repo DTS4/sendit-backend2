@@ -35,7 +35,7 @@ def seed_data():
             description='Electronics',
             user_id=user1.id,
             cost=300.0,
-            delivery_speed='Express'  
+            delivery_speed='Express'  # Added delivery speed
         )
         db.session.add(parcel1)
         db.session.add(parcel2)
