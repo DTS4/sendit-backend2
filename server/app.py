@@ -6,7 +6,7 @@ from models import db, User, Parcel
 from functools import wraps
 import jwt
 import datetime
-import requests  # For Google Maps API requests
+import requests  
 
 app = Flask(__name__)
 app.config.from_object(Config)
