@@ -6,10 +6,12 @@ def seed_data():
         db.drop_all()
         db.create_all()
 
-        # Create users
+        # Create admin user
         admin = User(username='admin', email='admin@example.com', role='admin')
         admin.set_password('admin123')
-        user1 = User(username='user1', email='user1@example.com')
+
+        # Create regular user
+        user1 = User(username='user1', email='user1@example.com', role='user')
         user1.set_password('user123')
 
         db.session.add(admin)
@@ -25,7 +27,7 @@ def seed_data():
             description='Fragile items',
             user_id=user1.id,
             cost=150.0,
-            delivery_speed='Standard'  # Added delivery speed
+            delivery_speed='Standard'  
         )
         parcel2 = Parcel(
             tracking_id='TRK456',
@@ -35,7 +37,7 @@ def seed_data():
             description='Electronics',
             user_id=user1.id,
             cost=300.0,
-            delivery_speed='Express'  # Added delivery speed
+            delivery_speed='Express'  
         )
         db.session.add(parcel1)
         db.session.add(parcel2)

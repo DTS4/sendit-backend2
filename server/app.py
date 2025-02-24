@@ -14,20 +14,24 @@ db.init_app(app)
 migrate = Migrate(app, db)
 CORS(app)
 
-# Helper function for JWT authentication
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = request.headers.get('Authorization')
-        if not token:
-            abort(401, description="Token is missing!")
-        try:
-            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-            current_user = User.query.get(data['user_id'])
-        except:
-            abort(401, description="Token is invalid!")
-        return f(current_user, *args, **kwargs)
-    return decorated
+# Helper function for JWT authentication with role-based access control
+def token_required(roles=None):
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            token = request.headers.get('Authorization')
+            if not token:
+                abort(401, description="Token is missing!")
+            try:
+                data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+                current_user = User.query.get(data['user_id'])
+                if roles and current_user.role not in roles:
+                    abort(403, description="You do not have permission to access this resource.")
+            except:
+                abort(401, description="Token is invalid!")
+            return f(current_user, *args, **kwargs)
+        return decorated
+    return decorator
 
 # Helper function to calculate cost using Google Maps Distance Matrix API
 def calculate_cost(pickup, destination, weight):
@@ -54,13 +58,45 @@ def login():
     if user and user.check_password(data['password']):
         token = jwt.encode({
             'user_id': user.id,
+            'role': user.role,  # Include role in the token
             'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
         }, app.config['SECRET_KEY'])
-        return jsonify({'token': token})
+        return jsonify({'token': token, 'role': user.role})  # Return role in the response
     abort(401, description="Invalid username or password")
 
+@app.route('/signup', methods=['POST'])
+def signup():
+    data = request.get_json()
+
+    # Validate required fields
+    if not data.get('username') or not data.get('email') or not data.get('password'):
+        abort(400, description="Username, email, and password are required.")
+
+    # Check if username or email already exists
+    if User.query.filter_by(username=data['username']).first():
+        abort(400, description="Username already exists.")
+    if User.query.filter_by(email=data['email']).first():
+        abort(400, description="Email already exists.")
+
+    # Create a new user
+    user = User(
+        username=data['username'],
+        email=data['email'],
+        role=data.get('role', 'user')  # Default role is 'user'
+    )
+    user.set_password(data['password'])
+    db.session.add(user)
+    db.session.commit()
+
+    return jsonify({
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'role': user.role
+    }), 201
+
 @app.route('/parcels', methods=['GET'])
-@token_required
+@token_required()
 def get_parcels(current_user):
     status = request.args.get('status')
     user_id = request.args.get('user_id')
@@ -77,7 +113,7 @@ def get_parcels(current_user):
     return jsonify([parcel.to_dict() for parcel in parcels])
 
 @app.route('/parcels', methods=['POST'])
-@token_required
+@token_required()
 def create_parcel(current_user):
     data = request.get_json()
     cost = calculate_cost(data['pickup_location'], data['destination'], data['weight'])
@@ -92,14 +128,14 @@ def create_parcel(current_user):
         description=data.get('description', ''),
         user_id=current_user.id,
         cost=cost,
-        delivery_speed=data.get('delivery_speed') 
+        delivery_speed=data.get('delivery_speed')  # Added delivery speed
     )
     db.session.add(parcel)
     db.session.commit()
     return jsonify(parcel.to_dict()), 201
 
 @app.route('/parcels/<int:parcel_id>', methods=['GET'])
-@token_required
+@token_required()
 def get_parcel(current_user, parcel_id):
     parcel = Parcel.query.get_or_404(parcel_id)
     if current_user.role != 'admin' and parcel.user_id != current_user.id:
@@ -107,7 +143,7 @@ def get_parcel(current_user, parcel_id):
     return jsonify(parcel.to_dict())
 
 @app.route('/parcels/<int:parcel_id>', methods=['PATCH'])
-@token_required
+@token_required()
 def update_parcel(current_user, parcel_id):
     parcel = Parcel.query.get_or_404(parcel_id)
     if current_user.role != 'admin' and parcel.user_id != current_user.id:
@@ -121,7 +157,7 @@ def update_parcel(current_user, parcel_id):
     return jsonify(parcel.to_dict())
 
 @app.route('/parcels/<int:parcel_id>', methods=['DELETE'])
-@token_required
+@token_required()
 def delete_parcel(current_user, parcel_id):
     parcel = Parcel.query.get_or_404(parcel_id)
     if current_user.role != 'admin' and parcel.user_id != current_user.id:
@@ -131,11 +167,8 @@ def delete_parcel(current_user, parcel_id):
     return '', 204
 
 @app.route('/stats', methods=['GET'])
-@token_required
+@token_required(roles=['admin'])
 def get_stats(current_user):
-    if current_user.role != 'admin':
-        abort(403, description="You do not have permission to view stats")
-
     total_deliveries = Parcel.query.count()
     pending_orders = Parcel.query.filter_by(status='Pending').count()
     in_transit_orders = Parcel.query.filter_by(status='In Transit').count()
