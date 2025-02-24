@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: sendit-backend
+    runtime: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app:app"
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        value: 87f0472af5773b86bb52188afa26d7885862d752b60ba7c9
+      - key: SQLALCHEMY_DATABASE_URI
+        value: postgresql://keith:securepassword123@localhost/parcel_db
+      - key: GOOGLE_MAPS_API_KEY
+        value: AIzaSyBMSIhZT1MzTsQ3EN-ys3RmndgFO3ygU4w
