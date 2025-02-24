@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, abort
 from flask_migrate import Migrate
 from flask_cors import CORS
 from server.config import Config
-from models import db, User, Parcel
+from server.models import db, User, Parcel
 from functools import wraps
 import jwt
 import datetime
