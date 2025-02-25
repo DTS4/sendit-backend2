@@ -1,8 +1,10 @@
 from flask import Flask, request, jsonify, abort
 from flask_migrate import Migrate
 from flask_cors import CORS
-from server.config import Config
-from server.models import db, User, Parcel
+# from server.config import Config
+# from server.models import db, User, Parcel
+from config import Config
+from models import db, User, Parcel
 from functools import wraps
 import jwt
 import datetime
@@ -60,108 +62,160 @@ def calculate_cost(pickup, destination, weight):
 def home():
     return "Parcel Delivery Backend"
 
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    data = request.get_json()
-    user = User.query.filter_by(username=data['username']).first()
-    if user and user.check_password(data['password']):
-        token = jwt.encode({
-            'user_id': user.id,
-            'role': user.role,  # Include role in the token
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
-        }, app.config['SECRET_KEY'])
-        return jsonify({'token': token, 'role': user.role})  # Return role in the response
-    abort(401, description="Invalid username or password")
+    if request.method == 'GET':
+        # Return a simple HTML form for testing
+        return '''
+            <form method="post">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username"><br>
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password"><br>
+                <button type="submit">Login</button>
+            </form>
+        '''
+    elif request.method == 'POST':
+        data = request.get_json()
+        user = User.query.filter_by(username=data['username']).first()
+        if user and user.check_password(data['password']):
+            token = jwt.encode({
+                'user_id': user.id,
+                'role': user.role,  # Include role in the token
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+            }, app.config['SECRET_KEY'])
+            return jsonify({'token': token, 'role': user.role})  # Return role in the response
+        abort(401, description="Invalid username or password")
 
-@app.route('/logout', methods=['POST'])
+@app.route('/logout', methods=['GET', 'POST'])
 @token_required()
 def logout(current_user):
-    # In a stateless JWT system, logout is handled client-side by deleting the token
-    return jsonify({'message': 'Logged out successfully'}), 200
+    if request.method == 'GET':
+        # Return a simple message for GET requests
+        return jsonify({'message': 'Logout endpoint. Use POST to logout.'}), 200
+    elif request.method == 'POST':
+        # In a stateless JWT system, logout is handled client-side by deleting the token
+        return jsonify({'message': 'Logged out successfully'}), 200
 
-@app.route('/signup', methods=['POST'])
+@app.route('/signup', methods=['GET', 'POST'])
 def signup():
-    data = request.get_json()
+    if request.method == 'GET':
+        # Return a simple HTML form for testing
+        return '''
+            <form method="post">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username"><br>
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email"><br>
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password"><br>
+                <label for="confirm_password">Confirm Password:</label>
+                <input type="password" id="confirm_password" name="confirm_password"><br>
+                <button type="submit">Sign Up</button>
+            </form>
+        '''
+    elif request.method == 'POST':
+        data = request.get_json()
+        # Validate required fields
+        if not data.get('username') or not data.get('email') or not data.get('password') or not data.get('confirm_password'):
+            abort(400, description="Username, email, password, and confirm password are required.")
 
-    # Validate required fields
-    if not data.get('username') or not data.get('email') or not data.get('password') or not data.get('confirm_password'):
-        abort(400, description="Username, email, password, and confirm password are required.")
+        # Check if passwords match
+        if data['password'] != data['confirm_password']:
+            abort(400, description="Passwords do not match.")
 
-    # Check if passwords match
-    if data['password'] != data['confirm_password']:
-        abort(400, description="Passwords do not match.")
+        # Check if username or email already exists
+        if User.query.filter_by(username=data['username']).first():
+            abort(400, description="Username already exists.")
+        if User.query.filter_by(email=data['email']).first():
+            abort(400, description="Email already exists.")
 
-    # Check if username or email already exists
-    if User.query.filter_by(username=data['username']).first():
-        abort(400, description="Username already exists.")
-    if User.query.filter_by(email=data['email']).first():
-        abort(400, description="Email already exists.")
+        user = User(
+            username=data['username'],
+            email=data['email'],
+            role=data.get('role', 'user') 
+        )
+        user.set_password(data['password'])
+        db.session.add(user)
+        db.session.commit()
 
-    # Create a new user
-    user = User(
-        username=data['username'],
-        email=data['email'],
-        role=data.get('role', 'user')  # Default role is 'user'
-    )
-    user.set_password(data['password'])
-    db.session.add(user)
-    db.session.commit()
+        return jsonify({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'role': user.role
+        }), 201
 
-    return jsonify({
-        'id': user.id,
-        'username': user.username,
-        'email': user.email,
-        'role': user.role
-    }), 201
-
-@app.route('/reset-password', methods=['POST'])
+@app.route('/reset-password', methods=['GET', 'POST'])
 def reset_password():
-    data = request.get_json()
-    email = data.get('email')
-    user = User.query.filter_by(email=email).first()
-    if not user:
-        abort(404, description="User not found.")
+    if request.method == 'GET':
+        # Return a simple HTML form for testing
+        return '''
+            <form method="post">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email"><br>
+                <button type="submit">Reset Password</button>
+            </form>
+        '''
+    elif request.method == 'POST':
+        data = request.get_json()
+        email = data.get('email')
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            abort(404, description="User not found.")
 
-    # Generate a reset token
-    reset_token = jwt.encode({
-        'user_id': user.id,
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
-    }, app.config['SECRET_KEY'])
+        # Generate a reset token
+        reset_token = jwt.encode({
+            'user_id': user.id,
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
+        }, app.config['SECRET_KEY'])
 
-    # Send reset email
-    msg = Message('Password Reset Request', sender='no-reply@example.com', recipients=[user.email])
-    msg.body = f'''To reset your password, visit the following link:
+        # Send reset email
+        msg = Message('Password Reset Request', sender='no-reply@example.com', recipients=[user.email])
+        msg.body = f'''To reset your password, visit the following link:
 {request.host_url}reset-password/{reset_token}
 
 If you did not make this request, please ignore this email.
 '''
-    mail.send(msg)
+        mail.send(msg)
 
-    return jsonify({'message': 'Password reset email sent'}), 200
+        return jsonify({'message': 'Password reset email sent'}), 200
 
-@app.route('/reset-password/<token>', methods=['POST'])
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password_confirm(token):
-    data = request.get_json()
-    new_password = data.get('new_password')
-    confirm_password = data.get('confirm_password')
+    if request.method == 'GET':
+        # Return a simple HTML form for testing
+        return '''
+            <form method="post">
+                <label for="new_password">New Password:</label>
+                <input type="password" id="new_password" name="new_password"><br>
+                <label for="confirm_password">Confirm Password:</label>
+                <input type="password" id="confirm_password" name="confirm_password"><br>
+                <button type="submit">Reset Password</button>
+            </form>
+        '''
+    elif request.method == 'POST':
+        data = request.get_json()
+        new_password = data.get('new_password')
+        confirm_password = data.get('confirm_password')
 
-    if not new_password or not confirm_password:
-        abort(400, description="New password and confirm password are required.")
+        if not new_password or not confirm_password:
+            abort(400, description="New password and confirm password are required.")
 
-    if new_password != confirm_password:
-        abort(400, description="Passwords do not match.")
+        if new_password != confirm_password:
+            abort(400, description="Passwords do not match.")
 
-    try:
-        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-        user = User.query.get(payload['user_id'])
-        if not user:
-            abort(404, description="User not found.")
+        try:
+            payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            user = User.query.get(payload['user_id'])
+            if not user:
+                abort(404, description="User not found.")
 
-        user.set_password(new_password)
-        db.session.commit()
-        return jsonify({'message': 'Password reset successfully'}), 200
-    except:
-        abort(400, description="Invalid or expired token.")
+            user.set_password(new_password)
+            db.session.commit()
+            return jsonify({'message': 'Password reset successfully'}), 200
+        except:
+            abort(400, description="Invalid or expired token.")
 
 @app.route('/parcels', methods=['GET'])
 @token_required()
