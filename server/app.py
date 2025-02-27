@@ -1,8 +1,6 @@
 from flask import Flask, request, jsonify, abort
 from flask_migrate import Migrate
 from flask_cors import CORS
-# from config import Config
-# from models import db, User, Parcel
 from server.config import Config
 from server.models import db, User, Parcel
 from functools import wraps
@@ -346,6 +344,33 @@ def get_stats(current_user):
         'in_transit_orders': in_transit_orders,
         'delivered_orders': delivered_orders
     })
+
+# New Endpoint: Get User Details
+@app.route('/user', methods=['GET'])
+@token_required()
+def get_user(current_user):
+    return jsonify({
+        'id': current_user.id,
+        'username': current_user.username,
+        'email': current_user.email,
+        'role': current_user.role
+    })
+
+# New Endpoint: Update User Settings
+@app.route('/settings', methods=['POST'])
+@token_required()
+def update_settings(current_user):
+    data = request.get_json()
+    if not data:
+        abort(400, description="No data provided.")
+
+    if 'email_notifications' in data:
+        current_user.email_notifications = data['email_notifications']
+    if 'dark_mode' in data:
+        current_user.dark_mode = data['dark_mode']
+
+    db.session.commit()
+    return jsonify({'message': 'Settings updated successfully'}), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
