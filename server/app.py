@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify, abort
 from flask_migrate import Migrate
 from flask_cors import CORS
+# from config import Config
+# from models import db, User, Parcel
 from server.config import Config
 from server.models import db, User, Parcel
 from functools import wraps
@@ -74,7 +76,16 @@ def login():
             </form>
         '''
     elif request.method == 'POST':
-        data = request.get_json()
+        # Handle both JSON and form data
+        if request.is_json:
+            data = request.get_json()
+        else:
+            data = request.form
+
+        # Validate required fields
+        if not data.get('username') or not data.get('password'):
+            abort(400, description="Username and password are required.")
+
         user = User.query.filter_by(username=data['username']).first()
         if user and user.check_password(data['password']):
             token = jwt.encode({
@@ -98,7 +109,6 @@ def logout(current_user):
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'GET':
-        # Return a simple HTML form for testing
         return '''
             <form method="post">
                 <label for="username">Username:</label>
@@ -135,7 +145,7 @@ def signup():
         user = User(
             username=data['username'],
             email=data['email'],
-            role=data.get('role', 'user') 
+            role=data.get('role', 'user')
         )
         user.set_password(data['password'])
         db.session.add(user)
@@ -338,4 +348,4 @@ def get_stats(current_user):
     })
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
