@@ -32,11 +32,15 @@ def token_required(roles=None):
             if not token:
                 abort(401, description="Token is missing!")
             try:
+                # Remove 'Bearer ' prefix if present
+                if token.startswith('Bearer '):
+                    token = token.split(' ')[1]
                 data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
                 current_user = User.query.get(data['user_id'])
                 if roles and current_user.role not in roles:
                     abort(403, description="You do not have permission to access this resource.")
-            except:
+            except Exception as e:
+                print(f"Token error: {e}")
                 abort(401, description="Token is invalid!")
             return f(current_user, *args, **kwargs)
         return decorated
@@ -364,6 +368,8 @@ def update_settings(current_user):
     if not data:
         abort(400, description="No data provided.")
 
+    # Example: Update user settings (e.g., email notifications, dark mode)
+    # You can add more fields as needed
     if 'email_notifications' in data:
         current_user.email_notifications = data['email_notifications']
     if 'dark_mode' in data:
