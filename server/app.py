@@ -146,6 +146,38 @@ def signup():
             'role': user.role
         }), 201
 
+@app.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.get_json()
+    email = data.get('email')
+    full_name = data.get('fullName')  # Assuming fullName is sent from the frontend
+
+    if not email or not full_name:
+        abort(400, description="Email and full name are required.")
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        abort(404, description="User not found.")
+
+    # Generate a reset token
+    reset_token = jwt.encode({
+        'user_id': user.id,
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
+    }, app.config['SECRET_KEY'])
+
+    # Send reset email
+    msg = Message('Password Reset Request', sender='no-reply@example.com', recipients=[user.email])
+    msg.body = f'''Hello {full_name},
+
+To reset your password, visit the following link:
+{request.host_url}reset-password/{reset_token}
+
+If you did not make this request, please ignore this email.
+'''
+    mail.send(msg)
+
+    return jsonify({'message': 'Password reset email sent'}), 200
+
 @app.route('/reset-password', methods=['GET', 'POST'])
 def reset_password():
     if request.method == 'GET':
