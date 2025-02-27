@@ -3,8 +3,6 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from server.config import Config
 from server.models import db, User, Parcel
-# from config import Config
-# from models import db, User, Parcel
 from functools import wraps
 import jwt
 import datetime
@@ -115,7 +113,11 @@ def signup():
             </form>
         '''
     elif request.method == 'POST':
-        data = request.get_json()
+        if request.is_json:
+            data = request.get_json()
+        else:
+            data = request.form
+
         # Validate required fields
         if not data.get('username') or not data.get('email') or not data.get('password') or not data.get('confirm_password'):
             abort(400, description="Username, email, password, and confirm password are required.")
