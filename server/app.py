@@ -35,10 +35,15 @@ def token_required(roles=None):
                 # Remove 'Bearer ' prefix if present
                 if token.startswith('Bearer '):
                     token = token.split(' ')[1]
+                # Decode the token
                 data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
                 current_user = User.query.get(data['user_id'])
                 if roles and current_user.role not in roles:
                     abort(403, description="You do not have permission to access this resource.")
+            except jwt.ExpiredSignatureError:
+                abort(401, description="Token has expired!")
+            except jwt.InvalidTokenError:
+                abort(401, description="Token is invalid!")
             except Exception as e:
                 print(f"Token error: {e}")
                 abort(401, description="Token is invalid!")
@@ -379,4 +384,4 @@ def update_settings(current_user):
     return jsonify({'message': 'Settings updated successfully'}), 200
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    app.run(debug=True)
