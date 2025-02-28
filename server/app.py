@@ -207,7 +207,7 @@ def forgot_password():
     elif request.method == 'POST':
         data = request.get_json()
         email = data.get('email')
-        full_name = data.get('fullName')  # Assuming fullName is sent from the frontend
+        full_name = data.get('fullName')  # Ensure this matches the frontend payload
 
         # Validate required fields
         if not email or not full_name:
@@ -215,32 +215,39 @@ def forgot_password():
                 'error': 'Email and full name are required.'
             }), 400
 
+        # Check if the user exists
         user = User.query.filter_by(email=email).first()
         if not user:
             return jsonify({
                 'error': 'User not found.'
             }), 404
 
-        # Generate a reset token
-        reset_token = jwt.encode({
-            'user_id': user.id,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
-        }, app.config['SECRET_KEY'])
+        try:
+            # Generate a reset token
+            reset_token = jwt.encode({
+                'user_id': user.id,
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
+            }, app.config['SECRET_KEY'])
 
-        # Send reset email
-        msg = Message('Password Reset Request', sender='no-reply@example.com', recipients=[user.email])
-        msg.body = f'''Hello {full_name},
+            # Send reset email
+            msg = Message('Password Reset Request', sender='no-reply@example.com', recipients=[user.email])
+            msg.body = f'''Hello {full_name},
 
 To reset your password, visit the following link:
 {request.host_url}reset-password/{reset_token}
 
 If you did not make this request, please ignore this email.
 '''
-        mail.send(msg)
+            mail.send(msg)
 
-        return jsonify({
-            'message': 'Password reset email sent.'
-        }), 200
+            return jsonify({
+                'message': 'Password reset email sent.'
+            }), 200
+        except Exception as e:
+            print(f"Error sending email: {e}")
+            return jsonify({
+                'error': 'Failed to send reset email. Please try again.'
+            }), 500
 
 @app.route('/reset-password', methods=['GET', 'POST'])
 def reset_password():
