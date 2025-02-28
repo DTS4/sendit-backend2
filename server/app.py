@@ -276,23 +276,47 @@ def reset_password_confirm(token):
         new_password = data.get('new_password')
         confirm_password = data.get('confirm_password')
 
+        # Validate required fields
         if not new_password or not confirm_password:
-            abort(400, description="New password and confirm password are required.")
+            return jsonify({
+                'error': 'New password and confirm password are required.'
+            }), 400
 
+        # Check if passwords match
         if new_password != confirm_password:
-            abort(400, description="Passwords do not match.")
+            return jsonify({
+                'error': 'Passwords do not match.'
+            }), 400
 
         try:
+            # Decode the token to get the user ID
             payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
             user = User.query.get(payload['user_id'])
             if not user:
-                abort(404, description="User not found.")
+                return jsonify({
+                    'error': 'User not found.'
+                }), 404
 
+            # Update the user's password
             user.set_password(new_password)
             db.session.commit()
-            return jsonify({'message': 'Password reset successfully'}), 200
-        except:
-            abort(400, description="Invalid or expired token.")
+
+            return jsonify({
+                'message': 'Password reset successfully.'
+            }), 200
+        except jwt.ExpiredSignatureError:
+            return jsonify({
+                'error': 'Token has expired.'
+            }), 400
+        except jwt.InvalidTokenError:
+            return jsonify({
+                'error': 'Invalid or expired token.'
+            }), 400
+        except Exception as e:
+            print(f"Error: {e}")
+            return jsonify({
+                'error': 'Something went wrong. Please try again.'
+            }), 500
 
 @app.route('/parcels', methods=['GET'])
 @token_required()
