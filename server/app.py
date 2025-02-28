@@ -75,7 +75,7 @@ def login():
         # Return a simple HTML form for testing
         return '''
             <form method="post">
-                <label for="username">Username:</label>
+                <label for="username">Username or Email:</label>
                 <input type="text" id="username" name="username"><br>
                 <label for="password">Password:</label>
                 <input type="password" id="password" name="password"><br>
@@ -91,17 +91,31 @@ def login():
 
         # Validate required fields
         if not data.get('username') or not data.get('password'):
-            abort(400, description="Username and password are required.")
+            return jsonify({
+                'error': 'Username/Email and password are required.'
+            }), 400
 
-        user = User.query.filter_by(username=data['username']).first()
+        # Check if the input is an email or username
+        user = User.query.filter((User.username == data['username']) | (User.email == data['username'])).first()
+
         if user and user.check_password(data['password']):
             token = jwt.encode({
                 'user_id': user.id,
                 'role': user.role,  # Include role in the token
                 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
             }, app.config['SECRET_KEY'])
-            return jsonify({'token': token, 'role': user.role})  # Return role in the response
-        abort(401, description="Invalid username or password")
+            return jsonify({
+                'token': token,
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': user.role
+                }
+            }), 200
+        return jsonify({
+            'error': 'Invalid username/email or password.'
+        }), 401
 
 @app.route('/logout', methods=['GET', 'POST'])
 @token_required()
