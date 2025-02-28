@@ -16,10 +16,10 @@ migrate = Migrate(app, db)
 CORS(app)
 
 # Flask-Mail configuration for Mailtrap
-app.config['MAIL_SERVER'] = 'live.smtp.mailtrap.io'
+app.config['MAIL_SERVER']='live.smtp.mailtrap.io'
 app.config['MAIL_PORT'] = 587
-app.config['MAIL_USERNAME'] = 'apismtp@mailtrap.io'  # Updated username
-app.config['MAIL_PASSWORD'] = 'a8769ffcd097e16768a3457f55ca653b'  # Your Mailtrap password
+app.config['MAIL_USERNAME'] = 'api'
+app.config['MAIL_PASSWORD'] = 'bf7c2f824d9ea043dbcbb1e1c638ccbf'
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 
