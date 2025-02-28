@@ -191,37 +191,56 @@ def signup():
             }
         }), 201
 
-@app.route('/forgot-password', methods=['POST'])
+@app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
-    data = request.get_json()
-    email = data.get('email')
-    full_name = data.get('fullName')  # Assuming fullName is sent from the frontend
+    if request.method == 'GET':
+        # Return a simple HTML form for testing
+        return '''
+            <form method="post">
+                <label for="fullName">Full Name:</label>
+                <input type="text" id="fullName" name="fullName"><br>
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email"><br>
+                <button type="submit">Send Reset Link</button>
+            </form>
+        '''
+    elif request.method == 'POST':
+        data = request.get_json()
+        email = data.get('email')
+        full_name = data.get('fullName')  # Assuming fullName is sent from the frontend
 
-    if not email or not full_name:
-        abort(400, description="Email and full name are required.")
+        # Validate required fields
+        if not email or not full_name:
+            return jsonify({
+                'error': 'Email and full name are required.'
+            }), 400
 
-    user = User.query.filter_by(email=email).first()
-    if not user:
-        abort(404, description="User not found.")
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            return jsonify({
+                'error': 'User not found.'
+            }), 404
 
-    # Generate a reset token
-    reset_token = jwt.encode({
-        'user_id': user.id,
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
-    }, app.config['SECRET_KEY'])
+        # Generate a reset token
+        reset_token = jwt.encode({
+            'user_id': user.id,
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
+        }, app.config['SECRET_KEY'])
 
-    # Send reset email
-    msg = Message('Password Reset Request', sender='no-reply@example.com', recipients=[user.email])
-    msg.body = f'''Hello {full_name},
+        # Send reset email
+        msg = Message('Password Reset Request', sender='no-reply@example.com', recipients=[user.email])
+        msg.body = f'''Hello {full_name},
 
 To reset your password, visit the following link:
 {request.host_url}reset-password/{reset_token}
 
 If you did not make this request, please ignore this email.
 '''
-    mail.send(msg)
+        mail.send(msg)
 
-    return jsonify({'message': 'Password reset email sent'}), 200
+        return jsonify({
+            'message': 'Password reset email sent.'
+        }), 200
 
 @app.route('/reset-password', methods=['GET', 'POST'])
 def reset_password():
