@@ -16,11 +16,13 @@ migrate = Migrate(app, db)
 CORS(app)
 
 # Flask-Mail configuration
-app.config['MAIL_SERVER'] = 'smtp.example.com'
+app.config['MAIL_SERVER']='live.smtp.mailtrap.io'
 app.config['MAIL_PORT'] = 587
+app.config['MAIL_USERNAME'] = 'api'
+app.config['MAIL_PASSWORD'] = 'a8769ffcd097e16768a3457f55ca653b'
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'your-email@example.com'
-app.config['MAIL_PASSWORD'] = 'your-email-password'
+app.config['MAIL_USE_SSL'] = False
+
 mail = Mail(app)
 
 # Helper function for JWT authentication with role-based access control
@@ -68,6 +70,20 @@ def calculate_cost(pickup, destination, weight):
 @app.route('/')
 def home():
     return "Parcel Delivery Backend"
+
+@app.route('/send-email')
+def send_email():
+    try:
+        msg = Message(
+            subject='Hello from Flask-Mail!',
+            sender='your-email@example.com',
+            recipients=['recipient@example.com']
+        )
+        msg.body = 'This is a test email sent from Flask-Mail using Mailtrap.'
+        mail.send(msg)  
+        return "Email sent successfully!"
+    except Exception as e:
+        return f"Failed to send email: {str(e)}"
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
