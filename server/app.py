@@ -113,21 +113,69 @@ def logout(current_user):
         # In a stateless JWT system, logout is handled client-side by deleting the token
         return jsonify({'message': 'Logged out successfully'}), 200
 
+# @app.route('/signup', methods=['GET', 'POST'])
+# def signup():
+#     if request.method == 'GET':
+#         return '''
+#             <form method="post">
+#                 <label for="username">Username:</label>
+#                 <input type="text" id="username" name="username"><br>
+#                 <label for="email">Email:</label>
+#                 <input type="email" id="email" name="email"><br>
+#                 <label for="password">Password:</label>
+#                 <input type="password" id="password" name="password"><br>
+#                 <label for="confirm_password">Confirm Password:</label>
+#                 <input type="password" id="confirm_password" name="confirm_password"><br>
+#                 <button type="submit">Sign Up</button>
+#             </form>
+#         '''
+#     elif request.method == 'POST':
+#         if request.is_json:
+#             data = request.get_json()
+#         else:
+#             data = request.form
+
+#         # Validate required fields
+#         if not data.get('username') or not data.get('email') or not data.get('password') or not data.get('confirm_password'):
+#             abort(400, description="Username, email, password, and confirm password are required.")
+
+#         # Check if passwords match
+#         if data['password'] != data['confirm_password']:
+#             abort(400, description="Passwords do not match.")
+
+#         # Check if username or email already exists
+#         if User.query.filter_by(username=data['username']).first():
+#             abort(400, description="Username already exists.")
+#         if User.query.filter_by(email=data['email']).first():
+#             abort(400, description="Email already exists.")
+
+#         user = User(
+#             username=data['username'],
+#             email=data['email'],
+#             role=data.get('role', 'user')
+#         )
+#         user.set_password(data['password'])
+#         db.session.add(user)
+#         db.session.commit()
+
+#         return jsonify({
+#             'id': user.id,
+#             'username': user.username,
+#             'email': user.email,
+#             'role': user.role
+#         }), 201
+
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'GET':
         return '''
-            <form method="post">
-                <label for="username">Username:</label>
-                <input type="text" id="username" name="username"><br>
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email"><br>
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password"><br>
-                <label for="confirm_password">Confirm Password:</label>
-                <input type="password" id="confirm_password" name="confirm_password"><br>
-                <button type="submit">Sign Up</button>
-            </form>
+               <form method="POST">
+                   <label>Username:</label><input type="text" name="username"><br>
+                   <label>Email:</label><input type="email" name="email"><br>
+                   <label>Password:</label><input type="password" name="password"><br>
+                   <label>Confirm Password:</label><input type="password" name="confirm_password"><br>
+                   <button type="submit">Sign Up</button>
+               </form>
         '''
     elif request.method == 'POST':
         if request.is_json:
@@ -135,19 +183,24 @@ def signup():
         else:
             data = request.form
 
-        # Validate required fields
         if not data.get('username') or not data.get('email') or not data.get('password') or not data.get('confirm_password'):
-            abort(400, description="Username, email, password, and confirm password are required.")
+            return jsonify({
+                'error': 'Username, email, password, and confirm password are required.'
+            }), 400
 
-        # Check if passwords match
         if data['password'] != data['confirm_password']:
-            abort(400, description="Passwords do not match.")
+            return jsonify({
+                'error': 'Passwords do not match.'
+            }), 400
 
-        # Check if username or email already exists
         if User.query.filter_by(username=data['username']).first():
-            abort(400, description="Username already exists.")
+            return jsonify({
+                'error': 'Username already exists.'
+            }), 400
         if User.query.filter_by(email=data['email']).first():
-            abort(400, description="Email already exists.")
+            return jsonify({
+                'error': 'Email already exists.'
+            }), 400
 
         user = User(
             username=data['username'],
