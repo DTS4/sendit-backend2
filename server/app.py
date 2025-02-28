@@ -15,11 +15,11 @@ db.init_app(app)
 migrate = Migrate(app, db)
 CORS(app)
 
-# Flask-Mail configuration
-app.config['MAIL_SERVER']='live.smtp.mailtrap.io'
+# Flask-Mail configuration for Mailtrap
+app.config['MAIL_SERVER'] = 'live.smtp.mailtrap.io'
 app.config['MAIL_PORT'] = 587
-app.config['MAIL_USERNAME'] = 'api'
-app.config['MAIL_PASSWORD'] = 'a8769ffcd097e16768a3457f55ca653b'
+app.config['MAIL_USERNAME'] = 'apismtp@mailtrap.io'  # Updated username
+app.config['MAIL_PASSWORD'] = 'a8769ffcd097e16768a3457f55ca653b'  # Your Mailtrap password
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 
@@ -76,11 +76,11 @@ def send_email():
     try:
         msg = Message(
             subject='Hello from Flask-Mail!',
-            sender='your-email@example.com',
+            sender='no-reply@mailtrap.io',  # Use a Mailtrap-allowed domain
             recipients=['recipient@example.com']
         )
         msg.body = 'This is a test email sent from Flask-Mail using Mailtrap.'
-        mail.send(msg)  
+        mail.send(msg)
         return "Email sent successfully!"
     except Exception as e:
         return f"Failed to send email: {str(e)}"
@@ -246,7 +246,11 @@ def forgot_password():
             }, app.config['SECRET_KEY'])
 
             # Send reset email
-            msg = Message('Password Reset Request', sender='no-reply@example.com', recipients=[user.email])
+            msg = Message(
+                subject='Password Reset Request',
+                sender='no-reply@mailtrap.io',  # Use a Mailtrap-allowed domain
+                recipients=[user.email]
+            )
             msg.body = f'''Hello {full_name},
 
 To reset your password, visit the following link:
@@ -283,22 +287,32 @@ def reset_password():
         if not user:
             abort(404, description="User not found.")
 
-        # Generate a reset token
-        reset_token = jwt.encode({
-            'user_id': user.id,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
-        }, app.config['SECRET_KEY'])
+        try:
+            # Generate a reset token
+            reset_token = jwt.encode({
+                'user_id': user.id,
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
+            }, app.config['SECRET_KEY'])
 
-        # Send reset email
-        msg = Message('Password Reset Request', sender='no-reply@example.com', recipients=[user.email])
-        msg.body = f'''To reset your password, visit the following link:
+            # Send reset email
+            msg = Message(
+                subject='Password Reset Request',
+                sender='no-reply@mailtrap.io',  # Use a Mailtrap-allowed domain
+                recipients=[user.email]
+            )
+            msg.body = f'''To reset your password, visit the following link:
 {request.host_url}reset-password/{reset_token}
 
 If you did not make this request, please ignore this email.
 '''
-        mail.send(msg)
+            mail.send(msg)
 
-        return jsonify({'message': 'Password reset email sent'}), 200
+            return jsonify({'message': 'Password reset email sent'}), 200
+        except Exception as e:
+            print(f"Error sending email: {e}")
+            return jsonify({
+                'error': 'Failed to send reset email. Please try again.'
+            }), 500
 
 @app.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password_confirm(token):
@@ -465,8 +479,6 @@ def update_settings(current_user):
     if not data:
         abort(400, description="No data provided.")
 
-    # Example: Update user settings (e.g., email notifications, dark mode)
-    # You can add more fields as needed
     if 'email_notifications' in data:
         current_user.email_notifications = data['email_notifications']
     if 'dark_mode' in data:
