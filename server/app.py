@@ -74,10 +74,10 @@ def generate_reset_token(length=32):
 
 # Function to send email
 def send_email(subject, recipient, body):
-    sender_email = os.getenv("EMAIL_ADDRESS")  # Get email address from .env
-    sender_password = os.getenv("EMAIL_PASSWORD")  # Get email password from .env
-    smtp_server = "smtp.gmail.com"
-    smtp_port = 587
+    sender_email = os.getenv("EMAIL_ADDRESS")
+    sender_password = os.getenv("EMAIL_PASSWORD")
+    smtp_server = os.getenv("SMTP_SERVER", "smtp.mailtrap.io")
+    smtp_port = int(os.getenv("SMTP_PORT", 2525))
 
     msg = MIMEMultipart()
     msg["From"] = sender_email
@@ -94,9 +94,6 @@ def send_email(subject, recipient, body):
         return True
     except Exception as e:
         print(f"Failed to send email: {e}")
-        print(f"Sender Email: {sender_email}")
-        print(f"Recipient: {recipient}")
-        print(f"SMTP Server: {smtp_server}:{smtp_port}")
         return False
 
 # Routes
