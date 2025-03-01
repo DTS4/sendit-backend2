@@ -3,27 +3,28 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from server.config import Config
 from server.models import db, User, Parcel
+# from config import Config
+# from models import db, User, Parcel
 from functools import wraps
 import jwt
 import datetime
 import requests
-from flask_mail import Mail, Message
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import string
+import random
+from dotenv import load_dotenv  # Import to load environment variables
+import os  # Import to access environment variables
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
 migrate = Migrate(app, db)
 CORS(app)
-
-# Flask-Mail configuration for Mailtrap
-app.config['MAIL_SERVER']='live.smtp.mailtrap.io'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USERNAME'] = 'api'
-app.config['MAIL_PASSWORD'] = 'bf7c2f824d9ea043dbcbb1e1c638ccbf'
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USE_SSL'] = False
-
-mail = Mail(app)
 
 # Helper function for JWT authentication with role-based access control
 def token_required(roles=None):
@@ -66,24 +67,40 @@ def calculate_cost(pickup, destination, weight):
     cost = (distance / 1000) * 1.5 * weight  # $1.5 per km per kg
     return round(cost, 2)
 
+# Function to generate reset token
+def generate_reset_token(length=32):
+    characters = string.ascii_letters + string.digits
+    return ''.join(random.choice(characters) for _ in range(length))
+
+# Function to send email
+def send_email(subject, recipient, body):
+    # Load email credentials from environment variables
+    sender_email = os.getenv("EMAIL_ADDRESS")  # Get email address from .env
+    sender_password = os.getenv("EMAIL_PASSWORD")  # Get email password from .env
+    smtp_server = "smtp.gmail.com"
+    smtp_port = 587
+
+    msg = MIMEMultipart()
+    msg["From"] = sender_email
+    msg["To"] = recipient
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain"))
+
+    try:
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, recipient, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        return False
+
 # Routes
 @app.route('/')
 def home():
     return "Parcel Delivery Backend"
-
-@app.route('/send-email')
-def send_email():
-    try:
-        msg = Message(
-            subject='Hello from Flask-Mail!',
-            sender='no-reply@mailtrap.io',  # Use a Mailtrap-allowed domain
-            recipients=['recipient@example.com']
-        )
-        msg.body = 'This is a test email sent from Flask-Mail using Mailtrap.'
-        mail.send(msg)
-        return "Email sent successfully!"
-    except Exception as e:
-        return f"Failed to send email: {str(e)}"
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -207,172 +224,44 @@ def signup():
             }
         }), 201
 
-@app.route('/forgot-password', methods=['GET', 'POST'])
+@app.route('/forgot-password', methods=['POST'])
 def forgot_password():
-    if request.method == 'GET':
-        # Return a simple HTML form for testing
-        return '''
-            <form method="post">
-                <label for="fullName">Full Name:</label>
-                <input type="text" id="fullName" name="fullName"><br>
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email"><br>
-                <button type="submit">Send Reset Link</button>
-            </form>
-        '''
-    elif request.method == 'POST':
-        data = request.get_json()
-        email = data.get('email')
-        full_name = data.get('fullName')  # Ensure this matches the frontend payload
+    data = request.get_json()
+    if not data.get('email'):
+        return jsonify({'error': 'Email is required'}), 400
 
-        # Validate required fields
-        if not email or not full_name:
-            return jsonify({
-                'error': 'Email and full name are required.'
-            }), 400
+    user = User.query.filter_by(email=data['email']).first()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
 
-        # Check if the user exists
-        user = User.query.filter_by(email=email).first()
-        if not user:
-            return jsonify({
-                'error': 'User not found.'
-            }), 404
+    reset_token = generate_reset_token()
+    user.reset_token = reset_token
+    db.session.commit()
 
-        try:
-            # Generate a reset token
-            reset_token = jwt.encode({
-                'user_id': user.id,
-                'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
-            }, app.config['SECRET_KEY'])
+    reset_link = f"http://localhost:3000/reset-password/{reset_token}"
+    email_subject = "Password Reset Request"
+    email_body = f"Click the link to reset your password: {reset_link}"
 
-            # Send reset email
-            msg = Message(
-                subject='Password Reset Request',
-                sender='no-reply@mailtrap.io',  # Use a Mailtrap-allowed domain
-                recipients=[user.email]
-            )
-            msg.body = f'''Hello {full_name},
+    if send_email(email_subject, user.email, email_body):
+        return jsonify({'message': 'Password reset email sent'}), 200
+    else:
+        return jsonify({'error': 'Failed to send email'}), 500
 
-To reset your password, visit the following link:
-{request.host_url}reset-password/{reset_token}
+@app.route('/reset-password/<reset_token>', methods=['POST'])
+def reset_password(reset_token):
+    data = request.get_json()
+    if not data.get('password'):
+        return jsonify({'error': 'Password is required'}), 400
 
-If you did not make this request, please ignore this email.
-'''
-            mail.send(msg)
+    user = User.query.filter_by(reset_token=reset_token).first()
+    if not user:
+        return jsonify({'error': 'Invalid or expired reset token'}), 400
 
-            return jsonify({
-                'message': 'Password reset email sent.'
-            }), 200
-        except Exception as e:
-            print(f"Error sending email: {e}")
-            return jsonify({
-                'error': 'Failed to send reset email. Please try again.'
-            }), 500
+    user.set_password(data['password'])
+    user.reset_token = None
+    db.session.commit()
 
-@app.route('/reset-password', methods=['GET', 'POST'])
-def reset_password():
-    if request.method == 'GET':
-        # Return a simple HTML form for testing
-        return '''
-            <form method="post">
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email"><br>
-                <button type="submit">Reset Password</button>
-            </form>
-        '''
-    elif request.method == 'POST':
-        data = request.get_json()
-        email = data.get('email')
-        user = User.query.filter_by(email=email).first()
-        if not user:
-            abort(404, description="User not found.")
-
-        try:
-            # Generate a reset token
-            reset_token = jwt.encode({
-                'user_id': user.id,
-                'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
-            }, app.config['SECRET_KEY'])
-
-            # Send reset email
-            msg = Message(
-                subject='Password Reset Request',
-                sender='no-reply@mailtrap.io',  # Use a Mailtrap-allowed domain
-                recipients=[user.email]
-            )
-            msg.body = f'''To reset your password, visit the following link:
-{request.host_url}reset-password/{reset_token}
-
-If you did not make this request, please ignore this email.
-'''
-            mail.send(msg)
-
-            return jsonify({'message': 'Password reset email sent'}), 200
-        except Exception as e:
-            print(f"Error sending email: {e}")
-            return jsonify({
-                'error': 'Failed to send reset email. Please try again.'
-            }), 500
-
-@app.route('/reset-password/<token>', methods=['GET', 'POST'])
-def reset_password_confirm(token):
-    if request.method == 'GET':
-        # Return a simple HTML form for testing
-        return '''
-            <form method="post">
-                <label for="new_password">New Password:</label>
-                <input type="password" id="new_password" name="new_password"><br>
-                <label for="confirm_password">Confirm Password:</label>
-                <input type="password" id="confirm_password" name="confirm_password"><br>
-                <button type="submit">Reset Password</button>
-            </form>
-        '''
-    elif request.method == 'POST':
-        data = request.get_json()
-        new_password = data.get('new_password')
-        confirm_password = data.get('confirm_password')
-
-        # Validate required fields
-        if not new_password or not confirm_password:
-            return jsonify({
-                'error': 'New password and confirm password are required.'
-            }), 400
-
-        # Check if passwords match
-        if new_password != confirm_password:
-            return jsonify({
-                'error': 'Passwords do not match.'
-            }), 400
-
-        try:
-            # Decode the token to get the user ID
-            payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-            user = User.query.get(payload['user_id'])
-            if not user:
-                return jsonify({
-                    'error': 'User not found.'
-                }), 404
-
-            # Update the user's password
-            user.set_password(new_password)
-            db.session.commit()
-
-            return jsonify({
-                'message': 'Password reset successfully.'
-            }), 200
-        except jwt.ExpiredSignatureError:
-            return jsonify({
-                'error': 'Token has expired.'
-            }), 400
-        except jwt.InvalidTokenError:
-            return jsonify({
-                'error': 'Invalid or expired token.'
-            }), 400
-        except Exception as e:
-            print(f"Error: {e}")
-            return jsonify({
-                'error': 'Something went wrong. Please try again.'
-            }), 500
+    return jsonify({'message': 'Password reset successful'}), 200
 
 @app.route('/parcels', methods=['GET'])
 @token_required()
