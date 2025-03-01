@@ -74,7 +74,6 @@ def generate_reset_token(length=32):
 
 # Function to send email
 def send_email(subject, recipient, body):
-    # Load email credentials from environment variables
     sender_email = os.getenv("EMAIL_ADDRESS")  # Get email address from .env
     sender_password = os.getenv("EMAIL_PASSWORD")  # Get email password from .env
     smtp_server = "smtp.gmail.com"
@@ -95,6 +94,9 @@ def send_email(subject, recipient, body):
         return True
     except Exception as e:
         print(f"Failed to send email: {e}")
+        print(f"Sender Email: {sender_email}")
+        print(f"Recipient: {recipient}")
+        print(f"SMTP Server: {smtp_server}:{smtp_port}")
         return False
 
 # Routes
