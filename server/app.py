@@ -258,6 +258,7 @@ def reset_password(reset_token):
     return jsonify({'message': 'Password reset successful'}), 200
 
 @app.route('/parcels', methods=['GET'])
+# @token_required()  # Temporarily commenting out the token_required decorator
 def get_parcels():
     status = request.args.get('status')
     user_id = request.args.get('user_id')
