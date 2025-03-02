@@ -261,7 +261,7 @@ def reset_password(reset_token):
     return jsonify({'message': 'Password reset successful'}), 200
 
 @app.route('/parcels', methods=['GET'])
-@token_required()
+# @token_required()
 def get_parcels(current_user):
     status = request.args.get('status')
     user_id = request.args.get('user_id')
@@ -278,29 +278,44 @@ def get_parcels(current_user):
     return jsonify([parcel.to_dict() for parcel in parcels])
 
 @app.route('/parcels', methods=['POST'])
-@token_required()
-def create_parcel(current_user):
+def create_parcel():
     data = request.get_json()
+    if not data:
+        abort(400, description="No data provided.")
+
+    # Validate required fields
+    required_fields = ['pickup_location', 'destination', 'weight', 'delivery_speed']
+    for field in required_fields:
+        if field not in data:
+            abort(400, description=f"{field.replace('_', ' ').title()} is required.")
+
+    # Calculate cost using Google Maps API
     cost = calculate_cost(data['pickup_location'], data['destination'], data['weight'])
     if cost is None:
         abort(400, description="Failed to calculate cost. Check pickup and destination locations.")
 
+    # Create the parcel
     parcel = Parcel(
-        tracking_id=data['tracking_id'],
+        tracking_id=f"TRK{random.randint(100000, 999999)}",  # Generate a random tracking ID
         pickup_location=data['pickup_location'],
         destination=data['destination'],
         weight=data['weight'],
         description=data.get('description', ''),
-        user_id=current_user.id,
+        user_id=data.get('user_id', 1),  # Default user_id for testing
         cost=cost,
-        delivery_speed=data.get('delivery_speed')  # Added delivery speed
+        delivery_speed=data['delivery_speed'],
+        status='Pending'  # Default status
     )
     db.session.add(parcel)
     db.session.commit()
-    return jsonify(parcel.to_dict()), 201
+
+    return jsonify({
+        'message': 'Parcel created successfully',
+        'parcel': parcel.to_dict()
+    }), 201
 
 @app.route('/parcels/<int:parcel_id>', methods=['GET'])
-@token_required()
+# @token_required()
 def get_parcel(current_user, parcel_id):
     parcel = Parcel.query.get_or_404(parcel_id)
     if current_user.role != 'admin' and parcel.user_id != current_user.id:
@@ -308,7 +323,7 @@ def get_parcel(current_user, parcel_id):
     return jsonify(parcel.to_dict())
 
 @app.route('/parcels/<int:parcel_id>', methods=['PATCH'])
-@token_required()
+# @token_required()
 def update_parcel(current_user, parcel_id):
     parcel = Parcel.query.get_or_404(parcel_id)
     if current_user.role != 'admin' and parcel.user_id != current_user.id:
@@ -322,7 +337,7 @@ def update_parcel(current_user, parcel_id):
     return jsonify(parcel.to_dict())
 
 @app.route('/parcels/<int:parcel_id>', methods=['DELETE'])
-@token_required()
+# @token_required()
 def delete_parcel(current_user, parcel_id):
     parcel = Parcel.query.get_or_404(parcel_id)
     if current_user.role != 'admin' and parcel.user_id != current_user.id:
