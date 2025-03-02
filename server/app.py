@@ -3,8 +3,6 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from server.config import Config
 from server.models import db, User, Parcel
-# from config import Config
-# from models import db, User, Parcel
 from functools import wraps
 import jwt
 import datetime
@@ -14,8 +12,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import string
 import random
-from dotenv import load_dotenv  # Import to load environment variables
-import os  # Import to access environment variables
+from dotenv import load_dotenv
+import os
 
 # Load environment variables from .env file
 load_dotenv()
@@ -374,6 +372,44 @@ def update_settings(current_user):
 
     db.session.commit()
     return jsonify({'message': 'Settings updated successfully'}), 200
+
+@app.route('/parcels/<int:parcel_id>/cancel', methods=['POST'])
+@token_required()
+def cancel_parcel(current_user, parcel_id):
+    parcel = Parcel.query.get_or_404(parcel_id)
+    
+    if current_user.role != 'admin' and parcel.user_id != current_user.id:
+        abort(403, description="You do not have permission to cancel this parcel")
+
+    if parcel.status == 'Cancelled':
+        return jsonify({'error': 'This parcel is already cancelled'}), 400
+
+    data = request.get_json()
+    if not data or not data.get('cancel_reason'):
+        return jsonify({'error': 'Cancellation reason is required'}), 400
+
+    parcel.status = 'Cancelled'
+    parcel.cancel_date = datetime.utcnow()
+    parcel.cancel_reason = data['cancel_reason']
+    parcel.refund_status = 'Pending'  
+
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Parcel cancelled successfully',
+        'parcel': parcel.to_dict()
+    }), 200
+
+@app.route('/parcels/cancelled', methods=['GET'])
+@token_required()
+def get_cancelled_parcels(current_user):
+    # Fetch all cancelled parcels for the current user (or all users if admin)
+    if current_user.role == 'admin':
+        cancelled_parcels = Parcel.query.filter_by(status='Cancelled').all()
+    else:
+        cancelled_parcels = Parcel.query.filter_by(user_id=current_user.id, status='Cancelled').all()
+
+    return jsonify([parcel.to_dict() for parcel in cancelled_parcels]), 200
 
 if __name__ == '__main__':
     app.run(debug=True)

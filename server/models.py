@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 
 db = SQLAlchemy()
 
@@ -31,6 +32,9 @@ class Parcel(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     cost = db.Column(db.Float, nullable=True)
     delivery_speed = db.Column(db.String(50), nullable=True)  
+    cancel_date = db.Column(db.DateTime, nullable=True)  # New field for cancellation date
+    cancel_reason = db.Column(db.String(200), nullable=True)  # New field for cancellation reason
+    refund_status = db.Column(db.String(50), nullable=True, default='Pending')  # New field for refund status
 
     def to_dict(self):
         return {
@@ -44,5 +48,8 @@ class Parcel(db.Model):
             'description': self.description,
             'user_id': self.user_id,
             'cost': self.cost,
-            'delivery_speed': self.delivery_speed  
+            'delivery_speed': self.delivery_speed,
+            'cancel_date': self.cancel_date.isoformat() if self.cancel_date else None,  # Format date for JSON
+            'cancel_reason': self.cancel_reason,
+            'refund_status': self.refund_status
         }
