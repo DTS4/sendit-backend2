@@ -54,15 +54,20 @@ def token_required(roles=None):
 
 # Helper function to calculate cost using Google Maps Distance Matrix API
 def calculate_cost(pickup, destination, weight):
-    url = f"https://maps.googleapis.com/maps/api/distancematrix/json?units=metric&origins={pickup}&destinations={destination}&key={app.config['GOOGLE_MAPS_API_KEY']}"
+    url = f"https://maps.googleapis.com/maps/api/distancematrix/json?units=metric&origins={pickup}&destinations={destination}&key={app.config['AIzaSyBMSIhZT1MzTsQ3EN-ys3RmndgFO3ygU4w']}"
     response = requests.get(url)
     data = response.json()
 
     if data['status'] != 'OK':
+        print(f"Google Maps API Error: {data.get('error_message', 'Unknown error')}")
         return None
 
-    distance = data['rows'][0]['elements'][0]['distance']['value']  # Distance in meters
-    cost = (distance / 1000) * 1.5 * weight  # $1.5 per km per kg
+    if not data['rows'] or not data['rows'][0]['elements']:
+        print("No distance data found for the given locations")
+        return None
+
+    distance = data['rows'][0]['elements'][0]['distance']['value'] 
+    cost = (distance / 1000) * 1.5 * weight  
     return round(cost, 2)
 
 # Function to generate reset token
@@ -276,40 +281,44 @@ def get_parcels():
 
 @app.route('/parcels', methods=['POST'])
 def create_parcel():
-    data = request.get_json()
-    if not data:
-        abort(400, description="No data provided.")
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
 
-    # Validate required fields
-    required_fields = ['pickup_location', 'destination', 'weight', 'delivery_speed']
-    for field in required_fields:
-        if field not in data:
-            abort(400, description=f"{field.replace('_', ' ').title()} is required.")
+        # Validate required fields
+        required_fields = ['pickup_location', 'destination', 'weight', 'delivery_speed']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'{field.replace("_", " ").title()} is required'}), 400
 
-    # Calculate cost using Google Maps API
-    cost = calculate_cost(data['pickup_location'], data['destination'], data['weight'])
-    if cost is None:
-        abort(400, description="Failed to calculate cost. Check pickup and destination locations.")
+        # Calculate cost using Google Maps API
+        cost = calculate_cost(data['pickup_location'], data['destination'], data['weight'])
+        if cost is None:
+            return jsonify({'error': 'Failed to calculate cost. Check pickup and destination locations'}), 400
 
-    # Create the parcel
-    parcel = Parcel(
-        tracking_id=f"TRK{random.randint(100000, 999999)}",  # Generate a random tracking ID
-        pickup_location=data['pickup_location'],
-        destination=data['destination'],
-        weight=data['weight'],
-        description=data.get('description', ''),
-        user_id=data.get('user_id', 1),  # Default user_id for testing
-        cost=cost,
-        delivery_speed=data['delivery_speed'],
-        status='Pending'  # Default status
-    )
-    db.session.add(parcel)
-    db.session.commit()
+        # Create the parcel
+        parcel = Parcel(
+            tracking_id=f"TRK{random.randint(100000, 999999)}",  # Generate a random tracking ID
+            pickup_location=data['pickup_location'],
+            destination=data['destination'],
+            weight=data['weight'],
+            description=data.get('description', ''),
+            user_id=data.get('user_id', 1),  # Default user_id for testing
+            cost=cost,
+            delivery_speed=data['delivery_speed'],
+            status='Pending'  # Default status
+        )
+        db.session.add(parcel)
+        db.session.commit()
 
-    return jsonify({
-        'message': 'Parcel created successfully',
-        'parcel': parcel.to_dict()
-    }), 201
+        return jsonify({
+            'message': 'Parcel created successfully',
+            'parcel': parcel.to_dict()
+        }), 201
+    except Exception as e:
+        print(f"Error creating parcel: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/parcels/<int:parcel_id>', methods=['GET'])
 def get_parcel(parcel_id):
