@@ -22,7 +22,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
 migrate = Migrate(app, db)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins for testing
 
 # Helper function for JWT authentication with role-based access control
 def token_required(roles=None):
@@ -261,17 +261,14 @@ def reset_password(reset_token):
     return jsonify({'message': 'Password reset successful'}), 200
 
 @app.route('/parcels', methods=['GET'])
-# @token_required()
-def get_parcels(current_user):
+def get_parcels():
     status = request.args.get('status')
     user_id = request.args.get('user_id')
 
     query = Parcel.query
-    if current_user.role != 'admin':
-        query = query.filter_by(user_id=current_user.id)
     if status:
         query = query.filter_by(status=status)
-    if user_id and current_user.role == 'admin':
+    if user_id:
         query = query.filter_by(user_id=user_id)
 
     parcels = query.all()
@@ -315,19 +312,13 @@ def create_parcel():
     }), 201
 
 @app.route('/parcels/<int:parcel_id>', methods=['GET'])
-# @token_required()
-def get_parcel(current_user, parcel_id):
+def get_parcel(parcel_id):
     parcel = Parcel.query.get_or_404(parcel_id)
-    if current_user.role != 'admin' and parcel.user_id != current_user.id:
-        abort(403, description="You do not have permission to view this parcel")
     return jsonify(parcel.to_dict())
 
 @app.route('/parcels/<int:parcel_id>', methods=['PATCH'])
-# @token_required()
-def update_parcel(current_user, parcel_id):
+def update_parcel(parcel_id):
     parcel = Parcel.query.get_or_404(parcel_id)
-    if current_user.role != 'admin' and parcel.user_id != current_user.id:
-        abort(403, description="You do not have permission to update this parcel")
     data = request.get_json()
     if 'status' in data:
         parcel.status = data['status']
@@ -337,11 +328,8 @@ def update_parcel(current_user, parcel_id):
     return jsonify(parcel.to_dict())
 
 @app.route('/parcels/<int:parcel_id>', methods=['DELETE'])
-# @token_required()
-def delete_parcel(current_user, parcel_id):
+def delete_parcel(parcel_id):
     parcel = Parcel.query.get_or_404(parcel_id)
-    if current_user.role != 'admin' and parcel.user_id != current_user.id:
-        abort(403, description="You do not have permission to delete this parcel")
     db.session.delete(parcel)
     db.session.commit()
     return '', 204
