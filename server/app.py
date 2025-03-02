@@ -55,7 +55,13 @@ def token_required(roles=None):
 
 # Function to calculate cost (without Google Maps API)
 def calculate_cost(distance, weight):
-    rate_per_km = 1.5  
+    try:
+        distance = float(distance)
+        weight = float(weight)
+    except (ValueError, TypeError):
+        raise ValueError("Distance and weight must be valid numbers.")
+
+    rate_per_km = 1.5  # $1.5 per kilometer per kilogram
     return round(distance * rate_per_km * weight, 2)
 
 # Function to generate reset token
@@ -280,16 +286,23 @@ def create_parcel():
             if field not in data:
                 return jsonify({'error': f'{field.replace("_", " ").title()} is required'}), 400
 
+        # Convert distance and weight to floats
+        try:
+            distance = float(data['distance'])
+            weight = float(data['weight'])
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Distance and weight must be valid numbers'}), 400
+
         # Calculate cost using the provided distance and weight
-        cost = calculate_cost(data['distance'], data['weight'])
+        cost = calculate_cost(distance, weight)
 
         # Create the parcel
         parcel = Parcel(
             tracking_id=f"TRK{random.randint(100000, 999999)}",  # Generate a random tracking ID
             pickup_location=data['pickup_location'],
             destination=data['destination'],
-            distance=data['distance'],  # Include distance
-            weight=data['weight'],
+            distance=distance,
+            weight=weight,
             description=data.get('description', ''),
             user_id=data.get('user_id', 1),  # Default user_id for testing
             cost=cost,
