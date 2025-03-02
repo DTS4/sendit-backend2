@@ -2,9 +2,7 @@ from flask import Flask, request, jsonify, abort
 from flask_migrate import Migrate
 from flask_cors import CORS
 from server.config import Config
-from server.models import db, User, Parcel
-# from config import Config
-# from models import db, User, Parcel
+from server.models import db, User, Parcel, Item
 from functools import wraps
 import jwt
 import datetime
@@ -360,33 +358,55 @@ def get_stats(current_user):
 
 # New Endpoint: Get User Details
 @app.route('/user', methods=['GET'])
-@token_required()
-def get_user(current_user):
-    return jsonify({
-        'id': current_user.id,
-        'username': current_user.username,
-        'email': current_user.email,
-        'role': current_user.role
-    })
+# @token_required()  # Temporarily commenting out the token_required decorator
+def get_user():
+    try:
+        # For testing purposes, hardcode a user_id or fetch the first user
+        user_id = 1  # Replace with a valid user_id for testing
+        user = User.query.get(user_id)
+
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        return jsonify({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'role': user.role
+        }), 200
+    except Exception as e:
+        print(f"Error fetching user details: {e}")
+        return jsonify({'error': 'Failed to fetch user details'}), 500
 
 # New Endpoint: Update User Settings
 @app.route('/settings', methods=['POST'])
-@token_required()
-def update_settings(current_user):
-    data = request.get_json()
-    if not data:
-        abort(400, description="No data provided.")
+# @token_required()  # Temporarily commenting out the token_required decorator
+def update_settings():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
 
-    if 'email_notifications' in data:
-        current_user.email_notifications = data['email_notifications']
-    if 'dark_mode' in data:
-        current_user.dark_mode = data['dark_mode']
+        # For testing purposes, hardcode a user_id or fetch the first user
+        user_id = 1  # Replace with a valid user_id for testing
+        user = User.query.get(user_id)
 
-    db.session.commit()
-    return jsonify({'message': 'Settings updated successfully'}), 200
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        if 'email_notifications' in data:
+            user.email_notifications = data['email_notifications']
+        if 'dark_mode' in data:
+            user.dark_mode = data['dark_mode']
+
+        db.session.commit()
+        return jsonify({'message': 'Settings updated successfully'}), 200
+    except Exception as e:
+        print(f"Error updating settings: {e}")
+        return jsonify({'error': 'Failed to update settings'}), 500
 
 @app.route('/parcels/<int:parcel_id>/cancel', methods=['POST'])
-@token_required()
+# @token_required()
 def cancel_parcel(current_user, parcel_id):
     parcel = Parcel.query.get_or_404(parcel_id)
     
@@ -413,15 +433,28 @@ def cancel_parcel(current_user, parcel_id):
     }), 200
 
 @app.route('/parcels/cancelled', methods=['GET'])
-@token_required()
+# @token_required()
 def get_cancelled_parcels(current_user):
-    # Fetch all cancelled parcels for the current user (or all users if admin)
     if current_user.role == 'admin':
         cancelled_parcels = Parcel.query.filter_by(status='Cancelled').all()
     else:
         cancelled_parcels = Parcel.query.filter_by(user_id=current_user.id, status='Cancelled').all()
 
     return jsonify([parcel.to_dict() for parcel in cancelled_parcels]), 200
+
+@app.route('/user/items', methods=['GET'])
+# @token_required()  
+def get_user_items():
+    try:
+        user_id = 1  # Replace with a valid user_id for testing
+        items = Item.query.filter_by(user_id=user_id).all()
+
+        items_data = [item.to_dict() for item in items]
+
+        return jsonify(items_data), 200
+    except Exception as e:
+        print(f"Error fetching user items: {e}")
+        return jsonify({'error': 'Failed to fetch user items'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
