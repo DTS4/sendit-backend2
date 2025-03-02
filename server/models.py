@@ -25,16 +25,14 @@ class Parcel(db.Model):
     tracking_id = db.Column(db.String(50), unique=True, nullable=False)
     pickup_location = db.Column(db.String(200), nullable=False)
     destination = db.Column(db.String(200), nullable=False)
-    status = db.Column(db.String(50), nullable=False, default='Pending') 
+    distance = db.Column(db.Float, nullable=False)  # Add this line
+    status = db.Column(db.String(50), nullable=False, default='Pending')
     current_location = db.Column(db.String(200), nullable=True)
     weight = db.Column(db.Float, nullable=False)
     description = db.Column(db.Text, nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     cost = db.Column(db.Float, nullable=True)
-    delivery_speed = db.Column(db.String(50), nullable=True)  
-    cancel_date = db.Column(db.DateTime, nullable=True)  # New field for cancellation date
-    cancel_reason = db.Column(db.String(200), nullable=True)  # New field for cancellation reason
-    refund_status = db.Column(db.String(50), nullable=True, default='Pending')  # New field for refund status
+    delivery_speed = db.Column(db.String(50), nullable=True)
 
     def to_dict(self):
         return {
@@ -42,14 +40,12 @@ class Parcel(db.Model):
             'tracking_id': self.tracking_id,
             'pickup_location': self.pickup_location,
             'destination': self.destination,
+            'distance': self.distance,  # Include distance in the response
             'status': self.status,
             'current_location': self.current_location,
             'weight': self.weight,
             'description': self.description,
             'user_id': self.user_id,
             'cost': self.cost,
-            'delivery_speed': self.delivery_speed,
-            'cancel_date': self.cancel_date.isoformat() if self.cancel_date else None,  # Format date for JSON
-            'cancel_reason': self.cancel_reason,
-            'refund_status': self.refund_status
+            'delivery_speed': self.delivery_speed
         }

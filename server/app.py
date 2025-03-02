@@ -1,12 +1,13 @@
 from flask import Flask, request, jsonify, abort
 from flask_migrate import Migrate
 from flask_cors import CORS
-from server.config import Config
-from server.models import db, User, Parcel
+# from server.config import Config
+# from server.models import db, User, Parcel
+from config import Config
+from models import db, User, Parcel
 from functools import wraps
 import jwt
 import datetime
-import requests
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -52,23 +53,10 @@ def token_required(roles=None):
         return decorated
     return decorator
 
-# Helper function to calculate cost using Google Maps Distance Matrix API
-def calculate_cost(pickup, destination, weight):
-    url = f"https://maps.googleapis.com/maps/api/distancematrix/json?units=metric&origins={pickup}&destinations={destination}&key={app.config['AIzaSyBMSIhZT1MzTsQ3EN-ys3RmndgFO3ygU4w']}"
-    response = requests.get(url)
-    data = response.json()
-
-    if data['status'] != 'OK':
-        print(f"Google Maps API Error: {data.get('error_message', 'Unknown error')}")
-        return None
-
-    if not data['rows'] or not data['rows'][0]['elements']:
-        print("No distance data found for the given locations")
-        return None
-
-    distance = data['rows'][0]['elements'][0]['distance']['value'] 
-    cost = (distance / 1000) * 1.5 * weight  
-    return round(cost, 2)
+# Function to calculate cost (without Google Maps API)
+def calculate_cost(distance, weight):
+    rate_per_km = 1.5  
+    return round(distance * rate_per_km * weight, 2)
 
 # Function to generate reset token
 def generate_reset_token(length=32):
@@ -287,21 +275,20 @@ def create_parcel():
             return jsonify({'error': 'No data provided'}), 400
 
         # Validate required fields
-        required_fields = ['pickup_location', 'destination', 'weight', 'delivery_speed']
+        required_fields = ['pickup_location', 'destination', 'distance', 'weight', 'delivery_speed']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'{field.replace("_", " ").title()} is required'}), 400
 
-        # Calculate cost using Google Maps API
-        cost = calculate_cost(data['pickup_location'], data['destination'], data['weight'])
-        if cost is None:
-            return jsonify({'error': 'Failed to calculate cost. Check pickup and destination locations'}), 400
+        # Calculate cost using the provided distance and weight
+        cost = calculate_cost(data['distance'], data['weight'])
 
         # Create the parcel
         parcel = Parcel(
             tracking_id=f"TRK{random.randint(100000, 999999)}",  # Generate a random tracking ID
             pickup_location=data['pickup_location'],
             destination=data['destination'],
+            distance=data['distance'],  # Include distance
             weight=data['weight'],
             description=data.get('description', ''),
             user_id=data.get('user_id', 1),  # Default user_id for testing
