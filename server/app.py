@@ -333,7 +333,7 @@ def cancel_parcel(parcel_id):
             return jsonify({'error': 'Cancellation reason is required'}), 400
 
         parcel.status = 'Cancelled'
-        parcel.cancel_date = datetime.utcnow()  
+        parcel.cancel_date = datetime.datetime.utcnow()  
         parcel.cancel_reason = data['cancel_reason']
         db.session.commit()
 
