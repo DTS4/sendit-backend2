@@ -68,9 +68,9 @@ def calculate_osrm_distance(pickup_location, delivery_location):
         def geocode_location(address):
             url = f"https://nominatim.openstreetmap.org/search?q={address}&format=json&limit=1"
             response = requests.get(url)
-            data = response.json()
-            if not data:
+            if response.status_code != 200 or not response.json():
                 raise ValueError(f"Location not found: {address}")
+            data = response.json()
             return {
                 "lat": float(data[0]['lat']),
                 "lon": float(data[0]['lon'])
@@ -82,10 +82,10 @@ def calculate_osrm_distance(pickup_location, delivery_location):
         # Call OSRM API for route
         osrm_url = f"http://router.project-osrm.org/route/v1/driving/{pickup_coords['lon']},{pickup_coords['lat']};{delivery_coords['lon']},{delivery_coords['lat']}?overview=false"
         osrm_response = requests.get(osrm_url)
-        osrm_data = osrm_response.json()
-
-        if not osrm_data.get('routes') or len(osrm_data['routes']) == 0:
+        if osrm_response.status_code != 200 or 'routes' not in osrm_response.json():
             raise ValueError("Route could not be calculated")
+
+        osrm_data = osrm_response.json()
 
         # Calculate the distance in kilometers
         distance_km = osrm_data['routes'][0]['legs'][0]['distance'] / 1000
@@ -311,18 +311,15 @@ def create_parcel():
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
-        # Validate required fields
         required_fields = ['pickup_location', 'destination', 'weight', 'delivery_speed']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'{field.replace("_", " ").title()} is required'}), 400
 
-        # Calculate distance using OSRM API
         distance = calculate_osrm_distance(data['pickup_location'], data['destination'])
         if distance is None:
-            return jsonify({'error': 'Failed to calculate distance'}), 500
+            return jsonify({'error': 'Failed to calculate distance'}), 400
 
-        # Convert weight to float
         try:
             weight = float(data['weight'])
         except (ValueError, TypeError):
@@ -337,7 +334,7 @@ def create_parcel():
             distance=distance,
             weight=weight,
             description=data.get('description', ''),
-            user_id=data.get('user_id', 1), 
+            user_id=data.get('user_id', 1),  
             cost=cost,
             delivery_speed=data['delivery_speed'],
             status='Pending'  
