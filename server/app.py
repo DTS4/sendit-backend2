@@ -311,24 +311,32 @@ def create_parcel():
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
+        # Validate required fields
         required_fields = ['pickup_location', 'destination', 'weight', 'delivery_speed']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'{field.replace("_", " ").title()} is required'}), 400
 
-        distance = calculate_osrm_distance(data['pickup_location'], data['destination'])
-        if distance is None:
-            return jsonify({'error': 'Failed to calculate distance'}), 400
+        # Use the distance provided by the frontend if available
+        distance = data.get('distance')
+        if distance is None or distance == "":
+            # Fallback to backend distance calculation if frontend distance is missing
+            distance = calculate_osrm_distance(data['pickup_location'], data['destination'])
+            if distance is None:
+                return jsonify({'error': 'Failed to calculate distance'}), 400
 
+        # Convert weight to float
         try:
             weight = float(data['weight'])
         except (ValueError, TypeError):
             return jsonify({'error': 'Weight must be a valid number'}), 400
 
+        # Calculate cost using the provided distance and weight
         cost = calculate_cost(distance, weight)
 
+        # Create the parcel
         parcel = Parcel(
-            tracking_id=f"TRK{random.randint(100000, 999999)}",  
+            tracking_id=f"TRK{random.randint(100000, 999999)}",  # Generate a random tracking ID
             pickup_location=data['pickup_location'],
             destination=data['destination'],
             distance=distance,
@@ -337,7 +345,7 @@ def create_parcel():
             user_id=data.get('user_id', 1),  
             cost=cost,
             delivery_speed=data['delivery_speed'],
-            status='Pending'  
+            status='Pending'  # Default status
         )
         db.session.add(parcel)
         db.session.commit()
