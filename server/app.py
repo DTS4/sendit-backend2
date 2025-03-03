@@ -379,19 +379,23 @@ def delete_parcel(parcel_id):
     return '', 204
 
 @app.route('/stats', methods=['GET'])
-# @token_required(roles=['admin'])
-def get_stats(current_user):
-    total_deliveries = Parcel.query.count()
-    pending_orders = Parcel.query.filter_by(status='Pending').count()
-    in_transit_orders = Parcel.query.filter_by(status='In Transit').count()
-    delivered_orders = Parcel.query.filter_by(status='Delivered').count()
+# Removed @token_required(roles=['admin'])
+def get_stats():
+    try:
+        total_deliveries = Parcel.query.count()
+        pending_orders = Parcel.query.filter_by(status='Pending').count()
+        in_transit_orders = Parcel.query.filter_by(status='In Transit').count()
+        delivered_orders = Parcel.query.filter_by(status='Delivered').count()
 
-    return jsonify({
-        'total_deliveries': total_deliveries,
-        'pending_orders': pending_orders,
-        'in_transit_orders': in_transit_orders,
-        'delivered_orders': delivered_orders
-    })
+        return jsonify({
+            'total_deliveries': total_deliveries,
+            'pending_orders': pending_orders,
+            'in_transit_orders': in_transit_orders,
+            'delivered_orders': delivered_orders
+        }), 200
+    except Exception as e:
+        print(f"Error fetching stats: {e}")
+        return jsonify({'error': 'Failed to fetch statistics'}), 500
 
 # New Endpoint: Get User Details
 @app.route('/user', methods=['GET'])
