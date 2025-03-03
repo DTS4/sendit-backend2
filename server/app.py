@@ -259,16 +259,15 @@ def reset_password(reset_token):
     return jsonify({'message': 'Password reset successful'}), 200
 
 @app.route('/parcels', methods=['GET'])
-# @token_required()  # Temporarily commenting out the token_required decorator
 def get_parcels():
-    status = request.args.get('status')
-    user_id = request.args.get('user_id')
+    status = request.args.get('status')   
+    user_id = request.args.get('user_id') 
 
     query = Parcel.query
     if status:
-        query = query.filter_by(status=status)
+        query = query.filter_by(status=status) 
     if user_id:
-        query = query.filter_by(user_id=user_id)
+        query = query.filter_by(user_id=user_id)  
 
     parcels = query.all()
     return jsonify([parcel.to_dict() for parcel in parcels])
