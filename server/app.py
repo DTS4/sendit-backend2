@@ -14,6 +14,9 @@ import string
 import random
 from dotenv import load_dotenv
 import os
+from twilio.rest import Client
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 load_dotenv()
 
@@ -124,6 +127,38 @@ def send_email(subject, recipient, body):
         print(f"Failed to send email: {e}")
         return False
 
+# Function to send SMS using Twilio
+def send_sms_notification(phone_number, message):
+    try:
+        account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+        auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+        client = Client(account_sid, auth_token)
+
+        client.messages.create(
+            body=message,
+            from_=os.getenv("TWILIO_PHONE_NUMBER"),
+            to=phone_number
+        )
+        return True
+    except Exception as e:
+        print(f"Failed to send SMS: {e}")
+        return False
+
+def send_email_notification(email, subject, content):
+    try:
+        sg = SendGridAPIClient(os.getenv("SENDGRID_API_KEY"))
+        message = Mail(
+            from_email=os.getenv("EMAIL_ADDRESS"),
+            to_emails=email,
+            subject=subject,
+            plain_text_content=content
+        )
+        sg.send(message)
+        return True
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        return False
+
 # Routes
 @app.route('/')
 def home():
@@ -189,64 +224,37 @@ def logout(current_user):
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
-    if request.method == 'GET':
-        # Return a simple HTML form for testing
-        return '''
-            <form method="post">
-                <label for="username">Username:</label>
-                <input type="text" id="username" name="username"><br>
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email"><br>
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password"><br>
-                <label for="confirm_password">Confirm Password:</label>
-                <input type="password" id="confirm_password" name="confirm_password"><br>
-                <button type="submit">Sign Up</button>
-            </form>
-        '''
-    elif request.method == 'POST':
-        if request.is_json:
-            data = request.get_json()
-        else:
-            data = request.form
+    if request.method == 'POST':
+        data = request.get_json()
 
-        # Validate required fields
-        if not data.get('username') or not data.get('email') or not data.get('password') or not data.get('confirm_password'):
-            return jsonify({
-                'error': 'Username, email, password, and confirm password are required.'
-            }), 400
+        if not all([data.get('username'), data.get('email'), data.get('password'), data.get('confirm_password')]):
+            return jsonify({'error': 'All fields are required.'}), 400
 
-        # Check if passwords match
         if data['password'] != data['confirm_password']:
-            return jsonify({
-                'error': 'Passwords do not match.'
-            }), 400
+            return jsonify({'error': 'Passwords do not match.'}), 400
 
-        # Check if username or email already exists
         if User.query.filter_by(username=data['username']).first():
-            return jsonify({
-                'error': 'Username already exists.'
-            }), 400
+            return jsonify({'error': 'Username already exists.'}), 400
+
         if User.query.filter_by(email=data['email']).first():
-            return jsonify({
-                'error': 'Email already exists.'
-            }), 400
+            return jsonify({'error': 'Email already exists.'}), 400
 
         user = User(
             username=data['username'],
             email=data['email'],
+            phone_number=data.get('phone_number'),  # Optional phone number
             role=data.get('role', 'user')
         )
         user.set_password(data['password'])
         db.session.add(user)
         db.session.commit()
 
-        # Return the user object with the role field
         return jsonify({
             'user': {
                 'id': user.id,
                 'username': user.username,
                 'email': user.email,
+                'phone_number': user.phone_number,
                 'role': user.role
             }
         }), 201
@@ -305,7 +313,8 @@ def get_parcels():
     return jsonify([parcel.to_dict() for parcel in parcels])
 
 @app.route('/parcels', methods=['POST'])
-def create_parcel():
+# @token_required()  # Ensure only authenticated users can create parcels
+def create_parcel(current_user):
     try:
         data = request.get_json()
         if not data:
@@ -325,35 +334,57 @@ def create_parcel():
             if distance is None:
                 return jsonify({'error': 'Failed to calculate distance'}), 400
 
-        # Convert weight to float
         try:
             weight = float(data['weight'])
         except (ValueError, TypeError):
             return jsonify({'error': 'Weight must be a valid number'}), 400
 
-        # Calculate cost using the provided distance and weight
         cost = calculate_cost(distance, weight)
 
-        # Create the parcel
         parcel = Parcel(
-            tracking_id=f"TRK{random.randint(100000, 999999)}",  # Generate a random tracking ID
+            tracking_id=f"TRK{random.randint(100000, 999999)}", 
             pickup_location=data['pickup_location'],
             destination=data['destination'],
             distance=distance,
             weight=weight,
             description=data.get('description', ''),
-            user_id=data.get('user_id', 1),  
+            user_id=current_user.id, 
             cost=cost,
             delivery_speed=data['delivery_speed'],
-            status='Pending'  # Default status
+            status='Pending' 
         )
         db.session.add(parcel)
         db.session.commit()
+
+        user = User.query.get(parcel.user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        sms_message = f"Your parcel (Tracking ID: {parcel.tracking_id}) has been created successfully!"
+        email_subject = "Order Confirmation"
+        email_content = (
+            f"Dear {user.username},\n\n"
+            f"Your parcel has been created successfully.\n"
+            f"Tracking ID: {parcel.tracking_id}\n"
+            f"Pickup Location: {parcel.pickup_location}\n"
+            f"Destination: {parcel.destination}\n"
+            f"Distance: {parcel.distance} km\n"
+            f"Weight: {parcel.weight} kg\n"
+            f"Cost: ${parcel.cost}\n"
+            f"Delivery Speed: {parcel.delivery_speed}\n\n"
+            f"Thank you for choosing our service!"
+        )
+
+        if user.phone_number:
+            send_sms_notification(user.phone_number, sms_message)
+
+        send_email_notification(user.email, email_subject, email_content)
 
         return jsonify({
             'message': 'Parcel created successfully',
             'parcel': parcel.to_dict()
         }), 201
+
     except Exception as e:
         print(f"Error creating parcel: {e}")
         return jsonify({'error': 'Internal server error'}), 500
