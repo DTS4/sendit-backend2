@@ -320,11 +320,46 @@ def create_parcel():
     except Exception as e:
         print(f"Error creating parcel: {e}")
         return jsonify({'error': 'Internal server error'}), 500
+    
+@app.route('/parcels/<int:parcel_id>/cancel', methods=['POST'])
+def cancel_parcel(parcel_id):
+    try:
+        parcel = Parcel.query.get_or_404(parcel_id)
 
-@app.route('/parcels/<int:parcel_id>', methods=['GET'])
-def get_parcel(parcel_id):
-    parcel = Parcel.query.get_or_404(parcel_id)
-    return jsonify(parcel.to_dict())
+        if parcel.status == 'Cancelled':
+            return jsonify({'error': 'This parcel is already cancelled'}), 400
+
+        data = request.get_json()
+        if not data or not data.get('cancel_reason'):
+            return jsonify({'error': 'Cancellation reason is required'}), 400
+
+        parcel.status = 'Cancelled'
+        parcel.cancel_date = datetime.utcnow()
+        parcel.cancel_reason = data['cancel_reason']
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Parcel cancelled successfully',
+            'parcel': parcel.to_dict()
+        }), 200
+    except Exception as e:
+        print(f"Error cancelling parcel: {e}")
+        return jsonify({'error': 'Failed to cancel parcel'}), 500
+
+@app.route('/parcels/cancelled', methods=['GET'])
+def get_cancelled_parcels():
+    try:
+        user_id = request.args.get('user_id', type=int) 
+        if not user_id:
+            user_id = 2
+
+        cancelled_parcels = Parcel.query.filter_by(user_id=user_id, status='Cancelled').all()
+
+        parcels_data = [parcel.to_dict() for parcel in cancelled_parcels]
+        return jsonify(parcels_data), 200
+    except Exception as e:
+        print(f"Error fetching cancelled parcels: {e}")
+        return jsonify({'error': 'Failed to fetch cancelled parcels'}), 500
 
 @app.route('/parcels/<int:parcel_id>', methods=['PATCH'])
 def update_parcel(parcel_id):
