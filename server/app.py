@@ -3,12 +3,11 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from server.config import Config
 from server.models import db, User, Parcel, Item
-# from config import Config   
-# from models import db, User, Parcel, Item
 from functools import wraps
 import jwt
 import datetime
 import smtplib
+import requests
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import string
@@ -16,14 +15,13 @@ import random
 from dotenv import load_dotenv
 import os
 
-# Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
 migrate = Migrate(app, db)
-CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins for testing
+CORS(app, resources={r"/*": {"origins": "*"}})  
 
 # Helper function for JWT authentication with role-based access control
 def token_required(roles=None):
@@ -63,6 +61,39 @@ def calculate_cost(distance, weight):
 
     rate_per_km = 1.5  # $1.5 per kilometer per kilogram
     return round(distance * rate_per_km * weight, 2)
+
+def calculate_osrm_distance(pickup_location, delivery_location):
+    try:
+        # Geocode the pickup and delivery locations
+        def geocode_location(address):
+            url = f"https://nominatim.openstreetmap.org/search?q={address}&format=json&limit=1"
+            response = requests.get(url)
+            data = response.json()
+            if not data:
+                raise ValueError(f"Location not found: {address}")
+            return {
+                "lat": float(data[0]['lat']),
+                "lon": float(data[0]['lon'])
+            }
+
+        pickup_coords = geocode_location(pickup_location)
+        delivery_coords = geocode_location(delivery_location)
+
+        # Call OSRM API for route
+        osrm_url = f"http://router.project-osrm.org/route/v1/driving/{pickup_coords['lon']},{pickup_coords['lat']};{delivery_coords['lon']},{delivery_coords['lat']}?overview=false"
+        osrm_response = requests.get(osrm_url)
+        osrm_data = osrm_response.json()
+
+        if not osrm_data.get('routes') or len(osrm_data['routes']) == 0:
+            raise ValueError("Route could not be calculated")
+
+        # Calculate the distance in kilometers
+        distance_km = osrm_data['routes'][0]['legs'][0]['distance'] / 1000
+        return round(distance_km, 2)  # Return distance rounded to 2 decimal places
+
+    except Exception as e:
+        print(f"Error calculating distance: {e}")
+        return None
 
 # Function to generate reset token
 def generate_reset_token(length=32):
@@ -281,33 +312,35 @@ def create_parcel():
             return jsonify({'error': 'No data provided'}), 400
 
         # Validate required fields
-        required_fields = ['pickup_location', 'destination', 'distance', 'weight', 'delivery_speed']
+        required_fields = ['pickup_location', 'destination', 'weight', 'delivery_speed']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'{field.replace("_", " ").title()} is required'}), 400
 
-        # Convert distance and weight to floats
+        # Calculate distance using OSRM API
+        distance = calculate_osrm_distance(data['pickup_location'], data['destination'])
+        if distance is None:
+            return jsonify({'error': 'Failed to calculate distance'}), 500
+
+        # Convert weight to float
         try:
-            distance = float(data['distance'])
             weight = float(data['weight'])
         except (ValueError, TypeError):
-            return jsonify({'error': 'Distance and weight must be valid numbers'}), 400
+            return jsonify({'error': 'Weight must be a valid number'}), 400
 
-        # Calculate cost using the provided distance and weight
         cost = calculate_cost(distance, weight)
 
-        # Create the parcel
         parcel = Parcel(
-            tracking_id=f"TRK{random.randint(100000, 999999)}",  # Generate a random tracking ID
+            tracking_id=f"TRK{random.randint(100000, 999999)}",  
             pickup_location=data['pickup_location'],
             destination=data['destination'],
             distance=distance,
             weight=weight,
             description=data.get('description', ''),
-            user_id=data.get('user_id', 1),  # Default user_id for testing
+            user_id=data.get('user_id', 1), 
             cost=cost,
             delivery_speed=data['delivery_speed'],
-            status='Pending'  # Default status
+            status='Pending'  
         )
         db.session.add(parcel)
         db.session.commit()
