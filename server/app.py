@@ -498,5 +498,20 @@ def get_user_items():
         print(f"Error fetching user items: {e}")
         return jsonify({'error': 'Failed to fetch user items'}), 500
 
+@app.route('/api/user', methods=['GET'])
+# @token_required()
+def get_user(current_user):
+    try:
+        # Return the user's details
+        return jsonify({
+            'id': current_user.id,
+            'username': current_user.username,
+            'email': current_user.email,
+            'role': current_user.role
+        }), 200
+    except Exception as e:
+        print(f"Error fetching user details: {e}")
+        return jsonify({'error': 'Failed to fetch user details'}), 500
+
 if __name__ == '__main__':
     app.run(debug=True)
