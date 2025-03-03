@@ -4,6 +4,7 @@ from flask_cors import CORS
 from server.config import Config
 from server.models import db, User, Parcel, Item
 from functools import wraps
+from datetime import datetime
 import jwt
 import datetime
 import smtplib
@@ -434,14 +435,22 @@ def cancel_parcel(current_user, parcel_id):
     }), 200
 
 @app.route('/parcels/cancelled', methods=['GET'])
-# @token_required()
+# @token_required()  # Ensure this decorator is applied
 def get_cancelled_parcels(current_user):
-    if current_user.role == 'admin':
-        cancelled_parcels = Parcel.query.filter_by(status='Cancelled').all()
-    else:
-        cancelled_parcels = Parcel.query.filter_by(user_id=current_user.id, status='Cancelled').all()
+    try:
+        if current_user.role == 'admin':
+            # Admin can see all cancelled parcels
+            cancelled_parcels = Parcel.query.filter_by(status='Cancelled').all()
+        else:
+            # Regular users can only see their own cancelled parcels
+            cancelled_parcels = Parcel.query.filter_by(user_id=current_user.id, status='Cancelled').all()
 
-    return jsonify([parcel.to_dict() for parcel in cancelled_parcels]), 200
+        # Convert parcels to a list of dictionaries
+        parcels_data = [parcel.to_dict() for parcel in cancelled_parcels]
+        return jsonify(parcels_data), 200
+    except Exception as e:
+        print(f"Error fetching cancelled parcels: {e}")
+        return jsonify({'error': 'Failed to fetch cancelled parcels'}), 500
 
 @app.route('/user/items', methods=['GET'])
 # @token_required()  
