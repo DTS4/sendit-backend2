@@ -6,7 +6,6 @@ from server.models import db, User, Parcel, Item
 # from config import Config   
 # from models import db, User, Parcel, Item
 from functools import wraps
-from datetime import datetime
 import jwt
 import datetime
 import smtplib
