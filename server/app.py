@@ -313,8 +313,8 @@ def get_parcels():
     return jsonify([parcel.to_dict() for parcel in parcels])
 
 @app.route('/parcels', methods=['POST'])
-# @token_required()  # Ensure only authenticated users can create parcels
-def create_parcel(current_user):
+# @token_required()  # Commented out to remove authentication requirement
+def create_parcel():
     try:
         data = request.get_json()
         if not data:
@@ -342,16 +342,16 @@ def create_parcel(current_user):
         cost = calculate_cost(distance, weight)
 
         parcel = Parcel(
-            tracking_id=f"TRK{random.randint(100000, 999999)}", 
+            tracking_id=f"TRK{random.randint(100000, 999999)}",
             pickup_location=data['pickup_location'],
             destination=data['destination'],
             distance=distance,
             weight=weight,
             description=data.get('description', ''),
-            user_id=current_user.id, 
+            user_id=1,  
             cost=cost,
             delivery_speed=data['delivery_speed'],
-            status='Pending' 
+            status='Pending'  
         )
         db.session.add(parcel)
         db.session.commit()
@@ -384,7 +384,6 @@ def create_parcel(current_user):
             'message': 'Parcel created successfully',
             'parcel': parcel.to_dict()
         }), 201
-
     except Exception as e:
         print(f"Error creating parcel: {e}")
         return jsonify({'error': 'Internal server error'}), 500
