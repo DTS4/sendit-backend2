@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 requests = "*"
 python-dotenv = "*"
+twilio = "==9.4.6"
 
 [dev-packages]
 
