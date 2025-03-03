@@ -127,7 +127,6 @@ def send_email(subject, recipient, body):
         print(f"Failed to send email: {e}")
         return False
 
-
 def send_email_notification(email, subject, content):
     try:
         sg = SendGridAPIClient(os.getenv("SENDGRID_API_KEY"))
@@ -282,15 +281,29 @@ def reset_password(reset_token):
 
     return jsonify({'message': 'Password reset successful'}), 200
 
-@app.route('/parcels', methods=['POST'])
-# @token_required()  # Ensure only authenticated users can create parcels
+# Fetch Parcels Route
+@app.route('/parcels', methods=['GET'], endpoint='fetch_parcels')  # Unique endpoint name
+def fetch_parcels():
+    status = request.args.get('status')
+    user_id = request.args.get('user_id')
+
+    query = Parcel.query
+    if status:
+        query = query.filter_by(status=status)
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+
+    parcels = query.all()
+    return jsonify([parcel.to_dict() for parcel in parcels])
+
+# Create Parcel Route
+@app.route('/parcels', methods=['POST'], endpoint='create_parcel')  # Unique endpoint name
 def create_parcel():
     try:
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
-        # Validate required fields
         required_fields = ['pickup_location', 'destination', 'weight', 'delivery_speed']
         for field in required_fields:
             if field not in data:
@@ -299,7 +312,6 @@ def create_parcel():
         # Use the distance provided by the frontend if available
         distance = data.get('distance')
         if distance is None or distance == "":
-            # Fallback to backend distance calculation if frontend distance is missing
             distance = calculate_osrm_distance(data['pickup_location'], data['destination'])
             if distance is None:
                 return jsonify({'error': 'Failed to calculate distance'}), 400
@@ -351,82 +363,6 @@ def create_parcel():
             'parcel': parcel.to_dict()
         }), 201
 
-    except Exception as e:
-        print(f"Error creating parcel: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/parcels', methods=['POST'])
-# @token_required()  # Commented out to remove authentication requirement
-def create_parcel():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-
-        # Validate required fields
-        required_fields = ['pickup_location', 'destination', 'weight', 'delivery_speed']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'{field.replace("_", " ").title()} is required'}), 400
-
-        # Use the distance provided by the frontend if available
-        distance = data.get('distance')
-        if distance is None or distance == "":
-            # Fallback to backend distance calculation if frontend distance is missing
-            distance = calculate_osrm_distance(data['pickup_location'], data['destination'])
-            if distance is None:
-                return jsonify({'error': 'Failed to calculate distance'}), 400
-
-        try:
-            weight = float(data['weight'])
-        except (ValueError, TypeError):
-            return jsonify({'error': 'Weight must be a valid number'}), 400
-
-        cost = calculate_cost(distance, weight)
-
-        parcel = Parcel(
-            tracking_id=f"TRK{random.randint(100000, 999999)}",
-            pickup_location=data['pickup_location'],
-            destination=data['destination'],
-            distance=distance,
-            weight=weight,
-            description=data.get('description', ''),
-            user_id=1,  
-            cost=cost,
-            delivery_speed=data['delivery_speed'],
-            status='Pending'  
-        )
-        db.session.add(parcel)
-        db.session.commit()
-
-        user = User.query.get(parcel.user_id)
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-
-        sms_message = f"Your parcel (Tracking ID: {parcel.tracking_id}) has been created successfully!"
-        email_subject = "Order Confirmation"
-        email_content = (
-            f"Dear {user.username},\n\n"
-            f"Your parcel has been created successfully.\n"
-            f"Tracking ID: {parcel.tracking_id}\n"
-            f"Pickup Location: {parcel.pickup_location}\n"
-            f"Destination: {parcel.destination}\n"
-            f"Distance: {parcel.distance} km\n"
-            f"Weight: {parcel.weight} kg\n"
-            f"Cost: ${parcel.cost}\n"
-            f"Delivery Speed: {parcel.delivery_speed}\n\n"
-            f"Thank you for choosing our service!"
-        )
-
-        if user.phone_number:
-            send_sms_notification(user.phone_number, sms_message)
-
-        send_email_notification(user.email, email_subject, email_content)
-
-        return jsonify({
-            'message': 'Parcel created successfully',
-            'parcel': parcel.to_dict()
-        }), 201
     except Exception as e:
         print(f"Error creating parcel: {e}")
         return jsonify({'error': 'Internal server error'}), 500
