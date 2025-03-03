@@ -3,6 +3,8 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from server.config import Config
 from server.models import db, User, Parcel, Item
+# from config import Config   
+# from models import db, User, Parcel, Item
 from functools import wraps
 from datetime import datetime
 import jwt
@@ -450,7 +452,7 @@ def get_cancelled_parcels():
 # @token_required()  
 def get_user_items():
     try:
-        user_id = 1  # Replace with a valid user_id for testing
+        user_id = 2  # Replace with a valid user_id for testing
         items = Item.query.filter_by(user_id=user_id).all()
 
         items_data = [item.to_dict() for item in items]
