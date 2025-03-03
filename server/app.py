@@ -334,7 +334,7 @@ def cancel_parcel(parcel_id):
             return jsonify({'error': 'Cancellation reason is required'}), 400
 
         parcel.status = 'Cancelled'
-        parcel.cancel_date = datetime.utcnow()
+        parcel.cancel_date = datetime.utcnow()  
         parcel.cancel_reason = data['cancel_reason']
         db.session.commit()
 
@@ -351,7 +351,7 @@ def get_cancelled_parcels():
     try:
         user_id = request.args.get('user_id', type=int) 
         if not user_id:
-            user_id = 2
+            return jsonify({'error': 'User ID is required'}), 400
 
         cancelled_parcels = Parcel.query.filter_by(user_id=user_id, status='Cancelled').all()
 
@@ -442,46 +442,6 @@ def update_settings():
     except Exception as e:
         print(f"Error updating settings: {e}")
         return jsonify({'error': 'Failed to update settings'}), 500
-
-# @app.route('/parcels/<int:parcel_id>/cancel', methods=['POST'])
-# # @token_required()
-# def cancel_parcel(current_user, parcel_id):
-#     parcel = Parcel.query.get_or_404(parcel_id)
-    
-#     if current_user.role != 'admin' and parcel.user_id != current_user.id:
-#         abort(403, description="You do not have permission to cancel this parcel")
-
-#     if parcel.status == 'Cancelled':
-#         return jsonify({'error': 'This parcel is already cancelled'}), 400
-
-#     data = request.get_json()
-#     if not data or not data.get('cancel_reason'):
-#         return jsonify({'error': 'Cancellation reason is required'}), 400
-
-#     parcel.status = 'Cancelled'
-#     parcel.cancel_date = datetime.utcnow()
-#     parcel.cancel_reason = data['cancel_reason']
-#     parcel.refund_status = 'Pending'  
-
-#     db.session.commit()
-
-#     return jsonify({
-#         'message': 'Parcel cancelled successfully',
-#         'parcel': parcel.to_dict()
-#     }), 200
-
-# @app.route('/parcels/cancelled', methods=['GET'])
-# def get_cancelled_parcels():
-#     try:
-#         # Fetch all cancelled parcels (no user filtering)
-#         cancelled_parcels = Parcel.query.filter_by(status='Cancelled').all()
-
-#         # Convert parcels to a list of dictionaries
-#         parcels_data = [parcel.to_dict() for parcel in cancelled_parcels]
-#         return jsonify(parcels_data), 200
-#     except Exception as e:
-#         print(f"Error fetching cancelled parcels: {e}")
-#         return jsonify({'error': 'Failed to fetch cancelled parcels'}), 500
 
 @app.route('/user/items', methods=['GET'])
 # @token_required()  
