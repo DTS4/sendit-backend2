@@ -435,15 +435,10 @@ def cancel_parcel(current_user, parcel_id):
     }), 200
 
 @app.route('/parcels/cancelled', methods=['GET'])
-# @token_required()  # Ensure this decorator is applied
-def get_cancelled_parcels(current_user):
+def get_cancelled_parcels():
     try:
-        if current_user.role == 'admin':
-            # Admin can see all cancelled parcels
-            cancelled_parcels = Parcel.query.filter_by(status='Cancelled').all()
-        else:
-            # Regular users can only see their own cancelled parcels
-            cancelled_parcels = Parcel.query.filter_by(user_id=current_user.id, status='Cancelled').all()
+        # Fetch all cancelled parcels (no user filtering)
+        cancelled_parcels = Parcel.query.filter_by(status='Cancelled').all()
 
         # Convert parcels to a list of dictionaries
         parcels_data = [parcel.to_dict() for parcel in cancelled_parcels]
