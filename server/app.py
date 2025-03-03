@@ -435,12 +435,9 @@ def get_stats():
         print(f"Error fetching stats: {e}")
         return jsonify({'error': 'Failed to fetch statistics'}), 500
 
-# New Endpoint: Get User Details
-@app.route('/user', methods=['GET'])
-# @token_required()  # Temporarily commenting out the token_required decorator
-def get_user():
+@app.route('/user', methods=['GET'], endpoint='get_user_v1')  
+def get_user_v1():
     try:
-        # For testing purposes, hardcode a user_id or fetch the first user
         user_id = 1  # Replace with a valid user_id for testing
         user = User.query.get(user_id)
 
@@ -498,11 +495,10 @@ def get_user_items():
         print(f"Error fetching user items: {e}")
         return jsonify({'error': 'Failed to fetch user items'}), 500
 
-@app.route('/api/user', methods=['GET'])
-# @token_required()
-def get_user(current_user):
+@app.route('/api/user', methods=['GET'], endpoint='get_user_v2')  
+@token_required()
+def get_user_v2(current_user):
     try:
-        # Return the user's details
         return jsonify({
             'id': current_user.id,
             'username': current_user.username,
