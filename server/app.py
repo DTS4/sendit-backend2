@@ -2,37 +2,33 @@ from flask import Flask, request, jsonify, abort
 from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_mail import Mail, Message
-from server.config import Config
+from server.config import Config 
 from server.models import db, User, Parcel, Item
 from functools import wraps
 import jwt
 import datetime
 import random
 import string
-from dotenv import load_dotenv
-import os
 import requests
-
-load_dotenv()
 
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Flask-Mail Configuration
-app.config['MAIL_SERVER'] = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-app.config['MAIL_PORT'] = int(os.getenv("SMTP_PORT", 587))
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.getenv("EMAIL_ADDRESS")
-app.config['MAIL_PASSWORD'] = os.getenv("EMAIL_PASSWORD")
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv("EMAIL_ADDRESS")
+
+app.config['MAIL_SERVER'] = "smtp.gmail.com"  
+app.config['MAIL_PORT'] = 587  
+app.config['MAIL_USE_TLS'] = True  
+app.config['MAIL_USERNAME'] = "keithgithinji@gmail.com"  
+app.config['MAIL_PASSWORD'] = "uwor rjoa pcwb taiy"  
+app.config['MAIL_DEFAULT_SENDER'] = "keithgithinji@gmail.com"  
 
 mail = Mail(app)
 
 db.init_app(app)
 migrate = Migrate(app, db)
+
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Helper function for JWT authentication with role-based access control
 def token_required(roles=None):
     def decorator(f):
         @wraps(f)
@@ -105,6 +101,7 @@ def generate_reset_token(length=32):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for _ in range(length))
 
+# Function to send email
 def send_email(subject, recipient, body):
     try:
         msg = Message(subject, recipients=[recipient])
