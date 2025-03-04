@@ -172,36 +172,46 @@ def signup():
     if request.method == 'POST':
         data = request.get_json()
 
+        # Validate required fields
         if not all([data.get('username'), data.get('email'), data.get('password'), data.get('confirm_password')]):
-            return jsonify({'error': 'All fields are required.'}), 400
+            return jsonify({'error': 'All fields (username, email, password, confirm_password) are required.'}), 400
 
+        # Check if passwords match
         if data['password'] != data['confirm_password']:
             return jsonify({'error': 'Passwords do not match.'}), 400
 
+        # Check if username already exists
         if User.query.filter_by(username=data['username']).first():
             return jsonify({'error': 'Username already exists.'}), 400
 
+        # Check if email already exists
         if User.query.filter_by(email=data['email']).first():
             return jsonify({'error': 'Email already exists.'}), 400
 
-        user = User(
-            username=data['username'],
-            email=data['email'],
-            role=data.get('role', 'user')
-        )
-        user.set_password(data['password'])
-        db.session.add(user)
-        db.session.commit()
+        try:
+            # Create new user
+            user = User(
+                username=data['username'],
+                email=data['email'],
+                role=data.get('role', 'user')  # Default role to 'user'
+            )
+            user.set_password(data['password'])  # Set hashed password
+            db.session.add(user)
+            db.session.commit()
 
-        return jsonify({
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'phone_number': user.phone_number,
-                'role': user.role
-            }
-        }), 201
+            return jsonify({
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': user.role 
+                }
+            }), 201
+
+        except Exception as e:
+            print(f"Error during signup: {e}")
+            db.session.rollback() 
+            return jsonify({'error': 'Internal server error'}), 500
 
     elif request.method == 'GET':
         return jsonify({'message': 'Signup endpoint. Use POST to create a new user.'}), 200
