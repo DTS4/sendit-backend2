@@ -399,9 +399,8 @@ def get_cancelled_parcels():
         return jsonify({'error': 'Failed to fetch cancelled parcels'}), 500
 
 # Update Parcel Status (Admin Only)
-@app.route('/parcels/<int:parcel_id>/update_status', methods=['POST'], endpoint='update_parcel_status')  # New admin-only route
-# @token_required(roles=['admin'])  # Ensure only admins can access this route
-def update_parcel_status(current_user, parcel_id):
+@app.route('/parcels/<int:parcel_id>/update_status', methods=['POST'], endpoint='update_parcel_status')
+def update_parcel_status(parcel_id):
     try:
         parcel = Parcel.query.get_or_404(parcel_id)
 
@@ -414,6 +413,9 @@ def update_parcel_status(current_user, parcel_id):
         valid_statuses = ['Pending', 'In Transit', 'Delivered']
         if new_status not in valid_statuses:
             return jsonify({'error': 'Invalid status'}), 400
+
+        if parcel.status == 'Delivered':
+            return jsonify({'error': 'You cannot update the status of a delivered parcel'}), 400
 
         parcel.status = new_status
         db.session.commit()
