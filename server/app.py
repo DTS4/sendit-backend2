@@ -228,12 +228,7 @@ def forgot_password():
 
     reset_token = generate_reset_token()
     user.reset_token = reset_token
-
-    try:
-        db.session.commit()
-    except Exception as e:
-        print(f"Error updating reset token: {e}")
-        return jsonify({'error': 'Failed to update reset token'}), 500
+    db.session.commit()
 
     reset_link = f"http://localhost:3000/reset-password/{reset_token}"
     subject = "Password Reset Request"
