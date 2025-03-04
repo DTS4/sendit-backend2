@@ -400,7 +400,7 @@ def get_cancelled_parcels():
 
 # Update Parcel Status (Admin Only)
 @app.route('/parcels/<int:parcel_id>/update_status', methods=['POST'], endpoint='update_parcel_status')  # New admin-only route
-@token_required(roles=['admin'])  # Ensure only admins can access this route
+# @token_required(roles=['admin'])  # Ensure only admins can access this route
 def update_parcel_status(current_user, parcel_id):
     try:
         parcel = Parcel.query.get_or_404(parcel_id)
@@ -526,8 +526,8 @@ def get_user_items():
         return jsonify({'error': 'Failed to fetch user items'}), 500
 
 # Admin API User Route
-@app.route('/api/user', methods=['GET'], endpoint='get_user_v2')  # Unique endpoint name
-@token_required()
+@app.route('/api/user', methods=['GET'], endpoint='get_user_v2') 
+# @token_required()
 def get_user_v2(current_user):
     try:
         return jsonify({
