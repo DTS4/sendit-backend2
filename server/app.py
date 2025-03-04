@@ -1,29 +1,33 @@
 from flask import Flask, request, jsonify, abort
 from flask_migrate import Migrate
 from flask_cors import CORS
-# from server.config import Config
-# from server.models import db, User, Parcel, Item
-from config import Config
-from models import db, User, Parcel, Item
+from flask_mail import Mail, Message
+from server.config import Config
+from server.models import db, User, Parcel, Item
 from functools import wraps
 import jwt
 import datetime
-import smtplib
-import requests
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-import string
 import random
+import string
 from dotenv import load_dotenv
 import os
-from twilio.rest import Client
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+import requests
 
 load_dotenv()
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Flask-Mail Configuration
+app.config['MAIL_SERVER'] = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+app.config['MAIL_PORT'] = int(os.getenv("SMTP_PORT", 587))
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.getenv("EMAIL_ADDRESS")
+app.config['MAIL_PASSWORD'] = os.getenv("EMAIL_PASSWORD")
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv("EMAIL_ADDRESS")
+
+mail = Mail(app)
+
 db.init_app(app)
 migrate = Migrate(app, db)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -101,41 +105,11 @@ def generate_reset_token(length=32):
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for _ in range(length))
 
-# Function to send email
 def send_email(subject, recipient, body):
-    sender_email = os.getenv("EMAIL_ADDRESS")
-    sender_password = os.getenv("EMAIL_PASSWORD")
-    smtp_server = os.getenv("SMTP_SERVER", "smtp.mailtrap.io")
-    smtp_port = int(os.getenv("SMTP_PORT", 2525))
-
-    msg = MIMEMultipart()
-    msg["From"] = sender_email
-    msg["To"] = recipient
-    msg["Subject"] = subject
-    msg.attach(MIMEText(body, "plain"))
-
     try:
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, recipient, msg.as_string())
-        server.quit()
-        return True
-    except Exception as e:
-        print(f"Failed to send email: {e}")
-        return False
-
-
-def send_email_notification(email, subject, content):
-    try:
-        sg = SendGridAPIClient(os.getenv("SENDGRID_API_KEY"))
-        message = Mail(
-            from_email=os.getenv("EMAIL_ADDRESS"),
-            to_emails=email,
-            subject=subject,
-            plain_text_content=content
-        )
-        sg.send(message)
+        msg = Message(subject, recipients=[recipient])
+        msg.body = body
+        mail.send(msg)
         return True
     except Exception as e:
         print(f"Failed to send email: {e}")
@@ -245,10 +219,10 @@ def forgot_password():
     db.session.commit()
 
     reset_link = f"http://localhost:3000/reset-password/{reset_token}"
-    email_subject = "Password Reset Request"
-    email_body = f"Click the link to reset your password: {reset_link}"
+    subject = "Password Reset Request"
+    body = f"Click the link to reset your password: {reset_link}"
 
-    if send_email(email_subject, user.email, email_body):
+    if send_email(subject, user.email, body):
         return jsonify({'message': 'Password reset email sent'}), 200
     else:
         return jsonify({'error': 'Failed to send email'}), 500
@@ -343,7 +317,7 @@ def create_parcel():
             f"Thank you for choosing our service!"
         )
 
-        send_email_notification(user.email, email_subject, email_content)
+        send_email(user.email, email_subject, email_content)
 
         return jsonify({
             'message': 'Parcel created successfully',
@@ -412,7 +386,7 @@ def update_parcel_status(parcel_id):
 
         new_status = data['status'].strip().capitalize()
 
-        valid_statuses = ['Pending', 'In-Transit', 'Delivered']
+        valid_statuses = ['Pending', 'In Transit', 'Delivered']
         if new_status not in valid_statuses:
             return jsonify({'error': 'Invalid status'}), 400
 
@@ -583,6 +557,28 @@ def get_user_v2(current_user):
     except Exception as e:
         print(f"Error fetching user details: {e}")
         return jsonify({'error': 'Failed to fetch user details'}), 500
+
+@app.route('/contact-us', methods=['POST'])
+def contact_us():
+    data = request.get_json()
+    if not all([data.get('name'), data.get('email'), data.get('message')]):
+        return jsonify({'error': 'All fields (name, email, message) are required.'}), 400
+
+    name = data['name']
+    email = data['email']
+    message = data['message']
+
+    subject = f"New Contact Form Submission from {name}"
+    body = f"Name: {name}\nEmail: {email}\nMessage: {message}"
+
+    try:
+        msg = Message(subject, recipients=[os.getenv("EMAIL_ADDRESS")])
+        msg.body = body
+        mail.send(msg)
+        return jsonify({'message': 'Your message has been sent successfully!'}), 200
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        return jsonify({'error': 'Failed to send your message.'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
