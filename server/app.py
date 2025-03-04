@@ -187,7 +187,6 @@ def signup():
         user = User(
             username=data['username'],
             email=data['email'],
-            phone_number=data.get('phone_number'),  # Optional phone number
             role=data.get('role', 'user')
         )
         user.set_password(data['password'])
@@ -203,6 +202,9 @@ def signup():
                 'role': user.role
             }
         }), 201
+
+    elif request.method == 'GET':
+        return jsonify({'message': 'Signup endpoint. Use POST to create a new user.'}), 200
 
 @app.route('/forgot-password', methods=['POST'])
 def forgot_password():
@@ -222,9 +224,13 @@ def forgot_password():
     subject = "Password Reset Request"
     body = f"Click the link to reset your password: {reset_link}"
 
-    if send_email(subject, user.email, body):
+    try:
+        msg = Message(subject, recipients=[user.email])
+        msg.body = body
+        mail.send(msg)
         return jsonify({'message': 'Password reset email sent'}), 200
-    else:
+    except Exception as e:
+        print(f"Failed to send email: {e}")
         return jsonify({'error': 'Failed to send email'}), 500
 
 @app.route('/reset-password/', methods=['POST'])
