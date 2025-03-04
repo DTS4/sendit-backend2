@@ -1,8 +1,10 @@
 from flask import Flask, request, jsonify, abort
 from flask_migrate import Migrate
 from flask_cors import CORS
-from server.config import Config
-from server.models import db, User, Parcel, Item
+# from server.config import Config
+# from server.models import db, User, Parcel, Item
+from config import Config
+from models import db, User, Parcel, Item
 from functools import wraps
 import jwt
 import datetime
@@ -410,7 +412,7 @@ def update_parcel_status(parcel_id):
 
         new_status = data['status'].strip().capitalize()
 
-        valid_statuses = ['Pending', 'In Transit', 'Delivered']
+        valid_statuses = ['Pending', 'In-Transit', 'Delivered']
         if new_status not in valid_statuses:
             return jsonify({'error': 'Invalid status'}), 400
 
