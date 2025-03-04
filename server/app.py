@@ -432,15 +432,42 @@ def update_parcel_status(parcel_id):
 # Patch Parcel Route (Update other details)
 @app.route('/parcels/<int:parcel_id>', methods=['PATCH'], endpoint='patch_parcel')  # Unique endpoint name
 def patch_parcel(parcel_id):
-    parcel = Parcel.query.get_or_404(parcel_id)
-    data = request.get_json()
+    try:
+        parcel = Parcel.query.get_or_404(parcel_id)
 
-    if 'status' in data:
-        parcel.status = data['status']
-    if 'current_location' in data:
-        parcel.current_location = data['current_location']
-    db.session.commit()
-    return jsonify(parcel.to_dict())
+        if parcel.status == 'Delivered':
+            return jsonify({'error': 'You cannot update a delivered parcel'}), 400
+
+        data = request.get_json()
+
+        if 'destination' in data:
+            new_destination = data['destination']
+            old_destination = parcel.destination
+
+            # Recalculate distance if destination is updated
+            if new_destination != old_destination:
+                distance = calculate_osrm_distance(parcel.pickup_location, new_destination)
+                if distance is None:
+                    return jsonify({'error': 'Failed to calculate new distance'}), 400
+
+                # Recalculate cost based on new distance
+                cost = calculate_cost(distance, parcel.weight)
+                parcel.distance = distance
+                parcel.cost = cost
+                parcel.destination = new_destination
+
+        if 'current_location' in data:
+            parcel.current_location = data['current_location']
+
+        db.session.commit()
+        return jsonify({
+            'message': 'Parcel updated successfully',
+            'parcel': parcel.to_dict()
+        }), 200
+
+    except Exception as e:
+        print(f"Error updating parcel: {e}")
+        return jsonify({'error': 'Failed to update parcel'}), 500
 
 # Delete Parcel Route
 @app.route('/parcels/<int:parcel_id>', methods=['DELETE'], endpoint='delete_parcel')  # Unique endpoint name
