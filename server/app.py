@@ -216,20 +216,24 @@ def signup():
 @app.route('/forgot-password', methods=['POST'])
 def forgot_password():
     data = request.get_json()
+    print(f"Received forgot-password request: {data}")  # Log incoming data
+
     if not data.get('email'):
         return jsonify({'error': 'Email is required'}), 400
 
     user = User.query.filter_by(email=data['email']).first()
     if not user:
-        return jsonify({'error': 'User not found'}), 404
+        return jsonify({'error': 'User not found'}), 400
 
     reset_token = generate_reset_token()
     user.reset_token = reset_token
     db.session.commit()
 
-    reset_link = f"http://localhost:3000/reset-password/{reset_token}"  # Ensure the token is included
+    reset_link = f"http://localhost:3000/reset-password/{reset_token}"
     subject = "Password Reset Request"
     body = f"Click the link to reset your password: {reset_link}"
+
+    print(f"Generated reset link: {reset_link}")  # Log the generated link
 
     try:
         msg = Message(subject, recipients=[user.email])
@@ -261,7 +265,7 @@ def reset_password(reset_token):
     except Exception as e:
         print(f"Error resetting password: {e}")
         return jsonify({'error': 'Failed to reset password'}), 500
-
+    
 # Fetch Parcels Route
 @app.route('/parcels', methods=['GET'], endpoint='fetch_parcels')  # Unique endpoint name
 def fetch_parcels():
