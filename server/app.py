@@ -82,13 +82,13 @@ def calculate_osrm_distance(pickup_location, delivery_location):
 
         osrm_url = f"http://router.project-osrm.org/route/v1/driving/{pickup_coords['lon']},{pickup_coords['lat']};{delivery_coords['lon']},{delivery_coords['lat']}?overview=false"
         osrm_response = requests.get(osrm_url)
+
         if osrm_response.status_code != 200 or 'routes' not in osrm_response.json():
             raise ValueError("Route could not be calculated")
 
         osrm_data = osrm_response.json()
-
         distance_km = osrm_data['routes'][0]['legs'][0]['distance'] / 1000
-        return round(distance_km, 2)  # Return distance rounded to 2 decimal places
+        return round(distance_km, 2) 
 
     except Exception as e:
         print(f"Error calculating distance: {e}")
@@ -405,8 +405,8 @@ def update_parcel_status(parcel_id):
         parcel = Parcel.query.get_or_404(parcel_id)
 
         data = request.get_json()
-        if not data or not data.get('status'):
-            return jsonify({'error': 'Status is required'}), 400
+        if not data or 'status' not in data:
+            return jsonify({'error': 'Status field is required'}), 400
 
         new_status = data['status'].strip().capitalize()
 
@@ -430,36 +430,49 @@ def update_parcel_status(parcel_id):
         return jsonify({'error': 'Failed to update parcel status'}), 500
 
 # Patch Parcel Route (Update other details)
-@app.route('/parcels/<int:parcel_id>', methods=['PATCH'], endpoint='patch_parcel')  # Unique endpoint name
+@app.route('/parcels/<int:parcel_id>', methods=['PATCH'], endpoint='patch_parcel')
 def patch_parcel(parcel_id):
     try:
+        # Fetch the parcel by ID
         parcel = Parcel.query.get_or_404(parcel_id)
 
+        # Check if the parcel has already been delivered
         if parcel.status == 'Delivered':
             return jsonify({'error': 'You cannot update a delivered parcel'}), 400
 
+        # Get the JSON data from the request
         data = request.get_json()
 
+        # Update the destination if provided
         if 'destination' in data:
             new_destination = data['destination']
             old_destination = parcel.destination
 
-            # Recalculate distance if destination is updated
+            # Recalculate distance if the destination is updated
             if new_destination != old_destination:
                 distance = calculate_osrm_distance(parcel.pickup_location, new_destination)
                 if distance is None:
                     return jsonify({'error': 'Failed to calculate new distance'}), 400
 
-                # Recalculate cost based on new distance
-                cost = calculate_cost(distance, parcel.weight)
+                # Recalculate cost based on the new distance
+                try:
+                    weight = float(parcel.weight)
+                    cost = calculate_cost(distance, weight)
+                except (ValueError, TypeError):
+                    return jsonify({'error': 'Invalid weight or distance value'}), 400
+
+                # Update the parcel's attributes
                 parcel.distance = distance
                 parcel.cost = cost
                 parcel.destination = new_destination
 
+        # Update the current location if provided
         if 'current_location' in data:
             parcel.current_location = data['current_location']
 
+        # Commit changes to the database
         db.session.commit()
+
         return jsonify({
             'message': 'Parcel updated successfully',
             'parcel': parcel.to_dict()
