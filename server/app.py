@@ -410,7 +410,7 @@ def update_parcel_status(parcel_id):
         # Normalize the incoming status value
         new_status = data['status'].strip().replace('-', ' ').capitalize()
 
-        valid_statuses = ['Pending', 'In Transit', 'Delivered']
+        valid_statuses = ['Pending', 'In-Transit', 'Delivered']
         if new_status not in valid_statuses:
             return jsonify({'error': 'Invalid status'}), 400
 
@@ -495,7 +495,7 @@ def get_stats():
     try:
         total_deliveries = Parcel.query.count()
         pending_orders = Parcel.query.filter_by(status='Pending').count()
-        in_transit_orders = Parcel.query.filter_by(status='In Transit').count()
+        in_transit_orders = Parcel.query.filter_by(status='In-Transit').count()
         delivered_orders = Parcel.query.filter_by(status='Delivered').count()
 
         return jsonify({
