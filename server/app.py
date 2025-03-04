@@ -227,7 +227,7 @@ def forgot_password():
     user.reset_token = reset_token
     db.session.commit()
 
-    reset_link = f"http://localhost:3000/reset-password/{reset_token}"
+    reset_link = f"http://localhost:3000/reset-password/{reset_token}"  # Ensure the token is included
     subject = "Password Reset Request"
     body = f"Click the link to reset your password: {reset_link}"
 
@@ -240,21 +240,27 @@ def forgot_password():
         print(f"Failed to send email: {e}")
         return jsonify({'error': 'Failed to send email'}), 500
 
-@app.route('/reset-password/', methods=['POST'])
+@app.route('/reset-password/<reset_token>', methods=['POST'])
 def reset_password(reset_token):
-    data = request.get_json()
-    if not data.get('password'):
-        return jsonify({'error': 'Password is required'}), 400
+    if not reset_token:
+        return jsonify({'error': 'Reset token is required'}), 400
 
     user = User.query.filter_by(reset_token=reset_token).first()
     if not user:
         return jsonify({'error': 'Invalid or expired reset token'}), 400
 
-    user.set_password(data['password'])
-    user.reset_token = None
-    db.session.commit()
+    data = request.get_json()
+    if not data or not data.get('password'):
+        return jsonify({'error': 'Password is required'}), 400
 
-    return jsonify({'message': 'Password reset successful'}), 200
+    try:
+        user.set_password(data['password'])
+        user.reset_token = None
+        db.session.commit()
+        return jsonify({'message': 'Password reset successful'}), 200
+    except Exception as e:
+        print(f"Error resetting password: {e}")
+        return jsonify({'error': 'Failed to reset password'}), 500
 
 # Fetch Parcels Route
 @app.route('/parcels', methods=['GET'], endpoint='fetch_parcels')  # Unique endpoint name
