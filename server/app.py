@@ -421,25 +421,28 @@ def get_cancelled_parcels():
         return jsonify({'error': 'Failed to fetch cancelled parcels'}), 500
 
 # Update Parcel Status (Admin Only)
-@app.route('/parcels/<int:parcel_id>/update_status', methods=['POST'], endpoint='update_parcel_status')
+@app.route('/parcels/<int:parcel_id>/update_status', methods=['POST'])
 def update_parcel_status(parcel_id):
     try:
         parcel = Parcel.query.get_or_404(parcel_id)
 
         data = request.get_json()
-        if not data or 'status' not in data:
-            return jsonify({'error': 'Status field is required'}), 400
+        if not data or not data.get('status'):
+            return jsonify({'error': 'Status is required'}), 400
 
-        # Normalize the incoming status value
-        new_status = data['status'].strip().replace('-', ' ').capitalize()
+        # Normalize the status value
+        new_status = data['status'].strip().replace(" ", "_").capitalize()
 
-        valid_statuses = ['Pending', 'In-Transit', 'Delivered']
+        # Define valid statuses
+        valid_statuses = ['Pending', 'In_Transit', 'Delivered']
+
         if new_status not in valid_statuses:
             return jsonify({'error': 'Invalid status'}), 400
 
         if parcel.status == 'Delivered':
             return jsonify({'error': 'You cannot update the status of a delivered parcel'}), 400
 
+        # Update the status
         parcel.status = new_status
         db.session.commit()
 
@@ -447,6 +450,7 @@ def update_parcel_status(parcel_id):
             'message': 'Parcel status updated successfully',
             'parcel': parcel.to_dict()
         }), 200
+
     except Exception as e:
         print(f"Error updating parcel status: {e}")
         return jsonify({'error': 'Failed to update parcel status'}), 500
