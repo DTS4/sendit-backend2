@@ -1,21 +1,22 @@
-from flask import Flask, request, jsonify, abort, redirect
+from flask import Flask, request, jsonify, abort
 from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_mail import Mail, Message
 from server.config import Config 
 from server.models import db, User, Parcel, Item
 from functools import wraps
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
+import bcrypt
 import jwt
 import datetime
 import random
 import string
 import requests
-from itsdangerous import URLSafeTimedSerializer
-import bcrypt
 
 app = Flask(__name__)
 app.config.from_object(Config)
 
+s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
 app.config['MAIL_SERVER'] = "smtp.gmail.com"  
 app.config['MAIL_PORT'] = 587  
@@ -23,8 +24,7 @@ app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USERNAME'] = "keithgithinji@gmail.com"  
 app.config['MAIL_PASSWORD'] = "uwor rjoa pcwb taiy"  
 app.config['MAIL_DEFAULT_SENDER'] = "keithgithinji@gmail.com"  
-mail = Mail(app)
-s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+
 mail = Mail(app)
 
 db.init_app(app)
@@ -261,26 +261,28 @@ def reset_password(token):
         return redirect(frontend_url)
 
     # Handle password reset on POST request
-    try:
-        email = s.loads(token, salt="password-reset", max_age=1800)  # Token expires in 30 minutes
-    except:
-        return jsonify({"error": "Invalid or expired token"}), 400
+    if request.method == "POST":
+        try:
+            # Verify the token
+            email = s.loads(token, salt="password-reset", max_age=1800)  # Token expires in 30 minutes
+        except (SignatureExpired, BadTimeSignature):
+            return jsonify({"error": "Invalid or expired token"}), 400
 
-    data = request.get_json()
-    if not data or "password" not in data:
-        return jsonify({"error": "Password is required"}), 400
+        data = request.get_json()
+        if not data or "password" not in data:
+            return jsonify({"error": "Password is required"}), 400
 
-    new_password = data["password"]
+        new_password = data["password"]
 
-    user = User.query.filter_by(email=email).first()
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
-    # Update and hash password
-    user.password_hash = bcrypt.generate_password_hash(new_password).decode("utf-8")
-    db.session.commit()
+        # Update and hash password
+        user.password_hash = bcrypt.generate_password_hash(new_password).decode("utf-8")
+        db.session.commit()
 
-    return jsonify({"message": "Password successfully reset."}), 200
+        return jsonify({"message": "Password successfully reset."}), 200
     
 # Fetch Parcels Route
 @app.route('/parcels', methods=['GET'], endpoint='fetch_parcels')  # Unique endpoint name
