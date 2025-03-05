@@ -92,7 +92,8 @@ SendIt is a full-stack web application designed to manage parcel deliveries effi
    cd ../sendit-frontend
 
 2. Install dependencies:
-   ```npm install
+   ```bash
+   npm install
 
 3. Start the development server:
    ```bash
