@@ -434,11 +434,11 @@ def update_parcel_status(parcel_id):
             return jsonify({'error': 'Status is required'}), 400
 
         # Normalize the status value
-        new_status = data['status'].strip().replace(" ", "_").capitalize()
+        new_status = data['status'].strip().replace(" ", "_").title().replace("_", "")  # Convert to Title Case
         print(f"Normalized status: {new_status}")  # Debugging
 
         # Define valid statuses
-        valid_statuses = ['Pending', 'In_Transit', 'Delivered']
+        valid_statuses = ['Pending', 'InTransit', 'Delivered']  # Updated to match the normalized format
         print(f"Valid statuses: {valid_statuses}")  # Debugging
 
         if new_status not in valid_statuses:
