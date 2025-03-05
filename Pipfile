@@ -4,6 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+bcrypt = "==4.3.0"
 requests = "*"
 python-dotenv = "*"
 twilio = "==9.4.6"
