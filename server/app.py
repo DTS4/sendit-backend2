@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, abort
+from flask import Flask, request, jsonify, abort, redirect
 from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_mail import Mail, Message
