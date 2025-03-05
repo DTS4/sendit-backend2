@@ -222,7 +222,7 @@ def signup():
 @app.route('/forgot-password', methods=['POST'])
 def forgot_password():
     data = request.get_json()
-    print(f"Received forgot-password request: {data}")  
+    print(f"Received forgot-password request: {data}")  # Log incoming data
 
     if not data.get('email'):
         return jsonify({'error': 'Email is required'}), 400
@@ -231,7 +231,7 @@ def forgot_password():
     if not user:
         return jsonify({'error': 'User not found'}), 400
 
-    reset_token = s.dumps(user.email, salt="password-reset")
+    reset_token = generate_reset_token()
     user.reset_token = reset_token
     db.session.commit()
 
