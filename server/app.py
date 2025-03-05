@@ -439,9 +439,10 @@ def update_parcel_status(parcel_id):
 
         # Define valid statuses
         valid_statuses = ['Pending', 'In_Transit', 'Delivered']
+        print(f"Valid statuses: {valid_statuses}")  # Debugging
 
         if new_status not in valid_statuses:
-            return jsonify({'error': 'Invalid status'}), 400
+            return jsonify({'error': f'Invalid status: {new_status}. Valid statuses are {valid_statuses}'}), 400
 
         if parcel.status == 'Delivered':
             return jsonify({'error': 'You cannot update the status of a delivered parcel'}), 400
