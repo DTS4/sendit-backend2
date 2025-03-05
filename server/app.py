@@ -16,7 +16,10 @@ import requests
 app = Flask(__name__)
 app.config.from_object(Config)
 
-s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+secret_key = app.config['SECRET_KEY']
+s = URLSafeTimedSerializer(secret_key, salt="password-reset")
+email = "keithgithinji@gmail.com"  
+token = s.dumps(email, salt="password-reset")
 
 app.config['MAIL_SERVER'] = "smtp.gmail.com"  
 app.config['MAIL_PORT'] = 587  
