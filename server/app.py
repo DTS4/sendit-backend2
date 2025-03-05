@@ -424,14 +424,18 @@ def get_cancelled_parcels():
 @app.route('/parcels/<int:parcel_id>/update_status', methods=['POST'])
 def update_parcel_status(parcel_id):
     try:
+        print(f"Received update status request for parcel {parcel_id}")  # Debugging
         parcel = Parcel.query.get_or_404(parcel_id)
 
         data = request.get_json()
+        print(f"Received data: {data}")  # Debugging
+
         if not data or not data.get('status'):
             return jsonify({'error': 'Status is required'}), 400
 
         # Normalize the status value
         new_status = data['status'].strip().replace(" ", "_").capitalize()
+        print(f"Normalized status: {new_status}")  # Debugging
 
         # Define valid statuses
         valid_statuses = ['Pending', 'In_Transit', 'Delivered']
