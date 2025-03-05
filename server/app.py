@@ -254,7 +254,7 @@ def forgot_password():
 
 @app.route("/reset-password/<token>", methods=["GET", "POST", "OPTIONS"])
 def reset_password(token):
-    print(f"Received {request.method} request to /reset-password/{token}")  # Debugging
+    print(f"Received {request.method} request to /reset-password/{token}") 
 
     # Handle OPTIONS preflight request (for CORS)
     if request.method == "OPTIONS":
@@ -424,11 +424,11 @@ def get_cancelled_parcels():
 @app.route('/parcels/<int:parcel_id>/update_status', methods=['POST'])
 def update_parcel_status(parcel_id):
     try:
-        print(f"Received update status request for parcel {parcel_id}")  # Debugging
+        print(f"Received update status request for parcel {parcel_id}") 
         parcel = Parcel.query.get_or_404(parcel_id)
 
         data = request.get_json()
-        print(f"Received data: {data}")  # Debugging
+        print(f"Received data: {data}") 
 
         if not data or not data.get('status'):
             return jsonify({'error': 'Status is required'}), 400
@@ -464,44 +464,39 @@ def update_parcel_status(parcel_id):
 @app.route('/parcels/<int:parcel_id>', methods=['PATCH'], endpoint='patch_parcel')
 def patch_parcel(parcel_id):
     try:
-        # Fetch the parcel by ID
+        print(f"Received update request for parcel {parcel_id}")  # Debugging
         parcel = Parcel.query.get_or_404(parcel_id)
 
         # Check if the parcel has already been delivered
         if parcel.status == 'Delivered':
             return jsonify({'error': 'You cannot update a delivered parcel'}), 400
 
-        # Get the JSON data from the request
         data = request.get_json()
+        print(f"Received data: {data}") 
 
-        # Update the destination if provided
         if 'destination' in data:
             new_destination = data['destination']
             old_destination = parcel.destination
 
-            # Recalculate distance if the destination is updated
             if new_destination != old_destination:
+                print(f"Recalculating distance for new destination: {new_destination}") 
                 distance = calculate_osrm_distance(parcel.pickup_location, new_destination)
                 if distance is None:
                     return jsonify({'error': 'Failed to calculate new distance'}), 400
 
-                # Recalculate cost based on the new distance
                 try:
                     weight = float(parcel.weight)
                     cost = calculate_cost(distance, weight)
                 except (ValueError, TypeError):
                     return jsonify({'error': 'Invalid weight or distance value'}), 400
 
-                # Update the parcel's attributes
                 parcel.distance = distance
                 parcel.cost = cost
                 parcel.destination = new_destination
 
-        # Update the current location if provided
         if 'current_location' in data:
             parcel.current_location = data['current_location']
 
-        # Commit changes to the database
         db.session.commit()
 
         return jsonify({
