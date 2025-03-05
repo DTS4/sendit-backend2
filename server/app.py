@@ -74,28 +74,40 @@ def calculate_cost(distance, weight):
 # Function to calculate distance using OSRM API
 def calculate_osrm_distance(pickup_location, delivery_location):
     try:
+        print(f"Calculating distance between {pickup_location} and {delivery_location}")  
+
         def geocode_location(address):
+            print(f"Geocoding address: {address}")  
             url = f"https://nominatim.openstreetmap.org/search?q={address}&format=json&limit=1"
             response = requests.get(url)
             if response.status_code != 200 or not response.json():
                 raise ValueError(f"Location not found: {address}")
             data = response.json()
+            print(f"Geocoding result: {data}")  
             return {
                 "lat": float(data[0]['lat']),
                 "lon": float(data[0]['lon'])
             }
 
         pickup_coords = geocode_location(pickup_location)
+        print(f"Pickup coordinates: {pickup_coords}")  
+
         delivery_coords = geocode_location(delivery_location)
+        print(f"Delivery coordinates: {delivery_coords}")  
 
         osrm_url = f"http://router.project-osrm.org/route/v1/driving/{pickup_coords['lon']},{pickup_coords['lat']};{delivery_coords['lon']},{delivery_coords['lat']}?overview=false"
+        print(f"OSRM URL: {osrm_url}")  
+
         osrm_response = requests.get(osrm_url)
+        print(f"OSRM response status: {osrm_response.status_code}")  
+        print(f"OSRM response data: {osrm_response.json()}")  
 
         if osrm_response.status_code != 200 or 'routes' not in osrm_response.json():
             raise ValueError("Route could not be calculated")
 
         osrm_data = osrm_response.json()
         distance_km = osrm_data['routes'][0]['legs'][0]['distance'] / 1000
+        print(f"Calculated distance: {distance_km} km")  
         return round(distance_km, 2) 
 
     except Exception as e:
@@ -435,11 +447,11 @@ def update_parcel_status(parcel_id):
 
         # Normalize the status value
         new_status = data['status'].strip().replace(" ", "_").title().replace("_", "")  # Convert to Title Case
-        print(f"Normalized status: {new_status}")  # Debugging
+        print(f"Normalized status: {new_status}")  
 
         # Define valid statuses
         valid_statuses = ['Pending', 'InTransit', 'Delivered']  # Updated to match the normalized format
-        print(f"Valid statuses: {valid_statuses}")  # Debugging
+        print(f"Valid statuses: {valid_statuses}")  
 
         if new_status not in valid_statuses:
             return jsonify({'error': f'Invalid status: {new_status}. Valid statuses are {valid_statuses}'}), 400
@@ -464,7 +476,7 @@ def update_parcel_status(parcel_id):
 @app.route('/parcels/<int:parcel_id>', methods=['PATCH'], endpoint='patch_parcel')
 def patch_parcel(parcel_id):
     try:
-        print(f"Received update request for parcel {parcel_id}")  # Debugging
+        print(f"Received update request for parcel {parcel_id}")  
         parcel = Parcel.query.get_or_404(parcel_id)
 
         # Check if the parcel has already been delivered
@@ -622,12 +634,11 @@ def contact_us():
     body = f"Name: {name}\nEmail: {email}\nMessage: {message}"
 
     try:
-        msg = Message(subject, recipients=[os.getenv("EMAIL_ADDRESS")])
+        msg = Message(subject, recipients=("EMAIL_ADDRESS"))
         msg.body = body
         mail.send(msg)
         return jsonify({'message': 'Your message has been sent successfully!'}), 200
     except Exception as e:
-        print(f"Failed to send email: {e}")
         return jsonify({'error': 'Failed to send your message.'}), 500
 
 if __name__ == '__main__':
