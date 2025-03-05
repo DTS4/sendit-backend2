@@ -6,12 +6,12 @@ from server.config import Config
 from server.models import db, User, Parcel, Item
 from functools import wraps
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignature
-import bcrypt
 import jwt
 import datetime
 import random
 import string
 import requests
+from werkzeug.security import generate_password_hash
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -284,7 +284,7 @@ def reset_password(token):
             return jsonify({"error": "User not found"}), 404
 
         # Update and hash password
-        user.password_hash = bcrypt.generate_password_hash(new_password).decode("utf-8")
+        user.password_hash = generate_password_hash(new_password)  # Use werkzeug.security
         db.session.commit()
 
         return jsonify({"message": "Password successfully reset."}), 200
