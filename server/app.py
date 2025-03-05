@@ -526,13 +526,13 @@ def get_stats():
     try:
         total_deliveries = Parcel.query.count()
         pending_orders = Parcel.query.filter_by(status='Pending').count()
-        in_transit_orders = Parcel.query.filter_by(status='In-Transit').count()
+        In_Transit_orders = Parcel.query.filter_by(status='In-Transit').count()
         delivered_orders = Parcel.query.filter_by(status='Delivered').count()
 
         return jsonify({
             'total_deliveries': total_deliveries,
             'pending_orders': pending_orders,
-            'in_transit_orders': in_transit_orders,
+            'In_Transit_orders': In_Transit_orders,
             'delivered_orders': delivered_orders
         }), 200
     except Exception as e:
