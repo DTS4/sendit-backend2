@@ -222,7 +222,7 @@ def signup():
 @app.route('/forgot-password', methods=['POST'])
 def forgot_password():
     data = request.get_json()
-    print(f"Received forgot-password request: {data}")  # Log incoming data
+    print(f"Received forgot-password request: {data}") 
 
     if not data.get('email'):
         return jsonify({'error': 'Email is required'}), 400
@@ -231,16 +231,18 @@ def forgot_password():
     if not user:
         return jsonify({'error': 'User not found'}), 400
 
-    reset_token = generate_reset_token()
-    user.reset_token = reset_token
-    db.session.commit()
+    try:
+        reset_token = s.dumps(user.email, salt="password-reset")
+        print(f"Generated reset token: {reset_token}")  
+    except Exception as e:
+        print(f"Error generating reset token: {e}")
+        return jsonify({'error': 'Failed to generate reset token'}), 500
 
     reset_link = f"http://localhost:3000/reset-password/{reset_token}"
     subject = "Password Reset Request"
     body = f"Click the link to reset your password: {reset_link}"
 
     print(f"Generated reset link: {reset_link}")  
-
     try:
         msg = Message(subject, recipients=[user.email])
         msg.body = body
