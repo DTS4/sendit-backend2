@@ -236,7 +236,7 @@ def forgot_password():
     subject = "Password Reset Request"
     body = f"Click the link to reset your password: {reset_link}"
 
-    print(f"Generated reset link: {reset_link}")  # Log the generated link
+    print(f"Generated reset link: {reset_link}")  
 
     try:
         msg = Message(subject, recipients=[user.email])
@@ -247,42 +247,34 @@ def forgot_password():
         print(f"Failed to send email: {e}")
         return jsonify({'error': 'Failed to send email'}), 500
 
-@app.route("/reset-password/<token>", methods=["GET", "POST", "OPTIONS"])
+@app.route('/reset-password/<token>', methods=["POST"])
 def reset_password(token):
-    print(f"Received {request.method} request to /reset-password/{token}")  # Debugging
+    print(f"Received reset-password request with token: {token}")  
 
-    # Handle OPTIONS preflight request (for CORS)
-    if request.method == "OPTIONS":
-        return "", 204
+    if not token:
+        return jsonify({'error': 'Reset token is required'}), 400
 
-    # Redirect GET requests to frontend reset page
-    if request.method == "GET":
-        frontend_url = f"http://localhost:3000/reset-password/{token}"  # Update with your frontend URL
-        return redirect(frontend_url)
+    try:
+        email = s.loads(token, salt="password-reset", max_age=1800)  
+    except SignatureExpired:
+        return jsonify({'error': 'Reset token has expired'}), 400
+    except BadTimeSignature:
+        return jsonify({'error': 'Invalid reset token'}), 400
 
-    # Handle password reset on POST request
-    if request.method == "POST":
-        try:
-            # Verify the token
-            email = s.loads(token, salt="password-reset", max_age=1800)  # Token expires in 30 minutes
-        except (SignatureExpired, BadTimeSignature):
-            return jsonify({"error": "Invalid or expired token"}), 400
+    data = request.get_json()
+    if not data or not data.get('password'):
+        return jsonify({'error': 'Password is required'}), 400
 
-        data = request.get_json()
-        if not data or "password" not in data:
-            return jsonify({"error": "Password is required"}), 400
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
 
-        new_password = data["password"]
+    # Update and hash password
+    user.set_password(data['password'])
+    user.reset_token = None
+    db.session.commit()
 
-        user = User.query.filter_by(email=email).first()
-        if not user:
-            return jsonify({"error": "User not found"}), 404
-
-        # Update and hash password
-        user.password_hash = bcrypt.generate_password_hash(new_password).decode("utf-8")
-        db.session.commit()
-
-        return jsonify({"message": "Password successfully reset."}), 200
+    return jsonify({'message': 'Password reset successful'}), 200
     
 # Fetch Parcels Route
 @app.route('/parcels', methods=['GET'], endpoint='fetch_parcels')  # Unique endpoint name
