@@ -42,11 +42,16 @@ def token_required(roles=None):
             token = request.headers.get('Authorization')
             if not token:
                 abort(401, description="Token is missing!")
+
             try:
                 if token.startswith('Bearer '):
                     token = token.split(' ')[1]
                 data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
                 current_user = User.query.get(data['user_id'])
+
+                if not current_user:
+                    abort(401, description="Invalid user!")
+
                 if roles and current_user.role not in roles:
                     abort(403, description="You do not have permission to access this resource.")
             except jwt.ExpiredSignatureError:
@@ -56,6 +61,7 @@ def token_required(roles=None):
             except Exception as e:
                 print(f"Token error: {e}")
                 abort(401, description="Token is invalid!")
+
             return f(current_user, *args, **kwargs)
         return decorated
     return decorator
@@ -329,7 +335,7 @@ def fetch_parcels(current_user):
     parcels = query.all()
     return jsonify([parcel.to_dict() for parcel in parcels])
 
-# Create Parcel Route
+# Create Parcel Route (Requires Token)
 @app.route('/parcels', methods=['POST'], endpoint='create_parcel')
 @token_required()
 def create_parcel(current_user):
@@ -477,7 +483,7 @@ def update_parcel_status(current_user, parcel_id):
         print(f"Error updating parcel status: {e}")
         return jsonify({'error': 'Failed to update parcel status'}), 500
 
-# Patch Parcel Route (Update other details)
+# Patch Parcel Route (Update other details) (Requires Token)
 @app.route('/parcels/<int:parcel_id>', methods=['PATCH'], endpoint='patch_parcel')
 @token_required()
 def patch_parcel(current_user, parcel_id):
