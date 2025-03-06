@@ -149,10 +149,12 @@ def send_email(subject, recipient, body):
 
 # Routes
 
+# Home Route
 @app.route('/')
 def home():
     return "Parcel Delivery Backend"
 
+# Login Route
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'GET':
@@ -168,7 +170,7 @@ def login():
         if not data.get('username') or not data.get('password'):
             return jsonify({
                 'error': 'Username/Email and password are required.'
-            }), 400
+             }), 400
 
         user = User.query.filter((User.username == data['username']) | (User.email == data['username'])).first()
 
@@ -191,6 +193,7 @@ def login():
             'error': 'Invalid username/email or password.'
         }), 401
 
+# Logout Route (Requires Token)
 @app.route('/logout', methods=['GET', 'POST'])
 @token_required()
 def logout(current_user):
@@ -199,6 +202,7 @@ def logout(current_user):
     elif request.method == 'POST':
         return jsonify({'message': 'Logged out successfully'}), 200
 
+# Signup Route
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
@@ -248,11 +252,10 @@ def signup():
     elif request.method == 'GET':
         return jsonify({'message': 'Signup endpoint. Use POST to create a new user.'}), 200
 
+# Forgot Password Route
 @app.route('/forgot-password', methods=['POST'])
 def forgot_password():
     data = request.get_json()
-    print(f"Received forgot-password request: {data}") 
-
     if not data.get('email'):
         return jsonify({'error': 'Email is required'}), 400
 
@@ -262,7 +265,6 @@ def forgot_password():
 
     try:
         reset_token = s.dumps(user.email, salt="password-reset")
-        print(f"Generated reset token: {reset_token}")  
     except Exception as e:
         print(f"Error generating reset token: {e}")
         return jsonify({'error': 'Failed to generate reset token'}), 500
@@ -271,7 +273,6 @@ def forgot_password():
     subject = "Password Reset Request"
     body = f"Click the link to reset your password: {reset_link}"
 
-    print(f"Generated reset link: {reset_link}")  
     try:
         msg = Message(subject, recipients=[user.email])
         msg.body = body
@@ -281,23 +282,18 @@ def forgot_password():
         print(f"Failed to send email: {e}")
         return jsonify({'error': 'Failed to send email'}), 500
 
+# Reset Password Route
 @app.route("/reset-password/<token>", methods=["GET", "POST", "OPTIONS"])
 def reset_password(token):
-    print(f"Received {request.method} request to /reset-password/{token}") 
-
-    # Handle OPTIONS preflight request (for CORS)
     if request.method == "OPTIONS":
         return "", 204
 
-    # Redirect GET requests to frontend reset page
     if request.method == "GET":
         frontend_url = f"http://localhost:3000/reset-password/{token}"  # Update with your frontend URL
         return redirect(frontend_url)
 
-    # Handle password reset on POST request
     if request.method == "POST":
         try:
-            # Verify the token
             email = s.loads(token, salt="password-reset", max_age=1800)  # Token expires in 30 minutes
         except (SignatureExpired, BadTimeSignature):
             return jsonify({"error": "Invalid or expired token"}), 400
@@ -312,15 +308,15 @@ def reset_password(token):
         if not user:
             return jsonify({"error": "User not found"}), 404
 
-        # Update and hash password
-        user.password_hash = generate_password_hash(new_password)  # Use werkzeug.security
+        user.password_hash = generate_password_hash(new_password)   # Use werkzeug.security
         db.session.commit()
 
         return jsonify({"message": "Password successfully reset."}), 200
-    
-# Fetch Parcels Route
-@app.route('/parcels', methods=['GET'], endpoint='fetch_parcels')  # Unique endpoint name
-def fetch_parcels():
+
+# Fetch Parcels Route (Admin Only)
+@app.route('/parcels', methods=['GET'], endpoint='fetch_parcels')
+@token_required(roles=['admin'])
+def fetch_parcels(current_user):
     status = request.args.get('status')
     user_id = request.args.get('user_id')
 
@@ -334,8 +330,9 @@ def fetch_parcels():
     return jsonify([parcel.to_dict() for parcel in parcels])
 
 # Create Parcel Route
-@app.route('/parcels', methods=['POST'], endpoint='create_parcel')  # Unique endpoint name
-def create_parcel():
+@app.route('/parcels', methods=['POST'], endpoint='create_parcel')
+@token_required()
+def create_parcel(current_user):
     try:
         data = request.get_json()
         if not data:
@@ -360,13 +357,13 @@ def create_parcel():
         cost = calculate_cost(distance, weight)
 
         parcel = Parcel(
-            tracking_id=f"TRK{random.randint(100000, 999999)}",
+            tracking_id=f"TRK{random.randint(100000, 999996)}",
             pickup_location=data['pickup_location'],
             destination=data['destination'],
             distance=distance,
             weight=weight,
             description=data.get('description', ''),
-            user_id=data.get('user_id', 1),  # Default user_id for testing
+            user_id=current_user.id,
             cost=cost,
             delivery_speed=data['delivery_speed'],
             status='Pending'
@@ -388,7 +385,7 @@ def create_parcel():
             f"Distance: {parcel.distance} km\n"
             f"Weight: {parcel.weight} kg\n"
             f"Cost: ${parcel.cost}\n"
-            f"Delivery Speed: {parcel.delivery_speed}\n\n"
+            f"Delivery Speed: {parcel.delivery_speed}\n\n" 
             f"Thank you for choosing our service!"
         )
 
@@ -401,11 +398,13 @@ def create_parcel():
 
     except Exception as e:
         print(f"Error creating parcel: {e}")
+        db.session.rollback()
         return jsonify({'error': 'Internal server error'}), 500
 
-# Cancel Parcel Route
-@app.route('/parcels/<int:parcel_id>/cancel', methods=['POST'], endpoint='cancel_parcel')  # Unique endpoint name
-def cancel_parcel(parcel_id):
+# Cancel Parcel Route (Requires Token)
+@app.route('/parcels/<int:parcel_id>/cancel', methods=['POST'], endpoint='cancel_parcel')
+@token_required()
+def cancel_parcel(current_user, parcel_id):
     try:
         parcel = Parcel.query.get_or_404(parcel_id)
 
@@ -433,15 +432,12 @@ def cancel_parcel(parcel_id):
         print(f"Error cancelling parcel: {e}")
         return jsonify({'error': 'Failed to cancel parcel'}), 500
 
-# Get Cancelled Parcels Route
-@app.route('/parcels/cancelled', methods=['GET'], endpoint='get_cancelled_parcels')  # Unique endpoint name
-def get_cancelled_parcels():
+# Get Cancelled Parcels Route (Requires Token)
+@app.route('/parcels/cancelled', methods=['GET'], endpoint='get_cancelled_parcels')
+@token_required()
+def get_cancelled_parcels(current_user):
     try:
-        user_id = request.args.get('user_id', type=int)
-        if not user_id:
-            return jsonify({'error': 'User ID is required'}), 400
-
-        cancelled_parcels = Parcel.query.filter_by(user_id=user_id, status='Cancelled').all()
+        cancelled_parcels = Parcel.query.filter_by(user_id=current_user.id, status='Cancelled').all()
 
         parcels_data = [parcel.to_dict() for parcel in cancelled_parcels]
         return jsonify(parcels_data), 200
@@ -451,24 +447,17 @@ def get_cancelled_parcels():
 
 # Update Parcel Status (Admin Only)
 @app.route('/parcels/<int:parcel_id>/update_status', methods=['POST'])
-def update_parcel_status(parcel_id):
+@token_required(roles=['admin'])
+def update_parcel_status(current_user, parcel_id):
     try:
-        print(f"Received update status request for parcel {parcel_id}") 
         parcel = Parcel.query.get_or_404(parcel_id)
 
         data = request.get_json()
-        print(f"Received data: {data}") 
-
         if not data or not data.get('status'):
             return jsonify({'error': 'Status is required'}), 400
 
-        # Normalize the status value
-        new_status = data['status'].strip().replace(" ", "_").title().replace("_", "")  # Convert to Title Case
-        print(f"Normalized status: {new_status}")  
-
-        # Define valid statuses
-        valid_statuses = ['Pending', 'InTransit', 'Delivered']  # Updated to match the normalized format
-        print(f"Valid statuses: {valid_statuses}")  
+        new_status = data['status'].strip().replace(" ", "_").title().replace("_", "")
+        valid_statuses = ['Pending', 'InTransit', 'Delivered']
 
         if new_status not in valid_statuses:
             return jsonify({'error': f'Invalid status: {new_status}. Valid statuses are {valid_statuses}'}), 400
@@ -476,7 +465,6 @@ def update_parcel_status(parcel_id):
         if parcel.status == 'Delivered':
             return jsonify({'error': 'You cannot update the status of a delivered parcel'}), 400
 
-        # Update the status
         parcel.status = new_status
         db.session.commit()
 
@@ -491,48 +479,38 @@ def update_parcel_status(parcel_id):
 
 # Patch Parcel Route (Update other details)
 @app.route('/parcels/<int:parcel_id>', methods=['PATCH'], endpoint='patch_parcel')
-def patch_parcel(parcel_id):
+@token_required()
+def patch_parcel(current_user, parcel_id):
     try:
-        print(f"Received update request for parcel {parcel_id}")  # Debugging
         parcel = Parcel.query.get_or_404(parcel_id)
 
-        # Check if the parcel has already been delivered
         if parcel.status == 'Delivered':
             return jsonify({'error': 'You cannot update a delivered parcel'}), 400
 
-        # Get the JSON data from the request
         data = request.get_json()
-        print(f"Received data: {data}")  # Debugging
 
-        # Update the destination if provided
         if 'destination' in data:
             new_destination = data['destination']
             old_destination = parcel.destination
 
-            # Recalculate distance if the destination is updated
             if new_destination != old_destination:
-                print(f"Recalculating distance for new destination: {new_destination}")  # Debugging
                 distance = calculate_osrm_distance(parcel.pickup_location, new_destination)
                 if distance is None:
                     return jsonify({'error': 'Failed to calculate distance. Please provide a more specific address.'}), 400
 
-                # Recalculate cost based on the new distance
                 try:
                     weight = float(parcel.weight)
                     cost = calculate_cost(distance, weight)
                 except (ValueError, TypeError):
                     return jsonify({'error': 'Invalid weight or distance value'}), 400
 
-                # Update the parcel's attributes
                 parcel.distance = distance
                 parcel.cost = cost
                 parcel.destination = new_destination
 
-        # Update the current location if provided
         if 'current_location' in data:
             parcel.current_location = data['current_location']
 
-        # Commit changes to the database
         db.session.commit()
 
         return jsonify({
@@ -544,17 +522,19 @@ def patch_parcel(parcel_id):
         print(f"Error updating parcel: {e}")
         return jsonify({'error': 'Failed to update parcel'}), 500
 
-# Delete Parcel Route
-@app.route('/parcels/<int:parcel_id>', methods=['DELETE'], endpoint='delete_parcel')  # Unique endpoint name
-def delete_parcel(parcel_id):
+# Delete Parcel Route (Requires Token)
+@app.route('/parcels/<int:parcel_id>', methods=['DELETE'], endpoint='delete_parcel')
+@token_required()
+def delete_parcel(current_user, parcel_id):
     parcel = Parcel.query.get_or_404(parcel_id)
-    db.session.delete(parcel)
+    db.session.delete(parcel) 
     db.session.commit()
     return '', 204
 
-# Stats Route
-@app.route('/stats', methods=['GET'], endpoint='get_stats')  # Unique endpoint name
-def get_stats():
+# Stats Route (Admin Only)
+@app.route('/stats', methods=['GET'], endpoint='get_stats')
+@token_required(roles=['admin'])
+def get_stats(current_user):
     try:
         total_deliveries = Parcel.query.count()
         pending_orders = Parcel.query.filter_by(status='Pending').count()
@@ -571,44 +551,34 @@ def get_stats():
         print(f"Error fetching stats: {e}")
         return jsonify({'error': 'Failed to fetch statistics'}), 500
 
-# Get User Details Route
-@app.route('/user', methods=['GET'], endpoint='get_user_v1')  # Unique endpoint name
-def get_user_v1():
+# Get User Details Route (Requires Token)
+@app.route('/user', methods=['GET'], endpoint='get_user_v1')
+@token_required()
+def get_user_v1(current_user):
     try:
-        user_id = 1  # Replace with a valid user_id for testing
-        user = User.query.get(user_id)
-
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-
         return jsonify({
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'role': user.role
+            'id': current_user.id,
+            'username': current_user.username,
+            'email': current_user.email,
+            'role': current_user.role
         }), 200
     except Exception as e:
         print(f"Error fetching user details: {e}")
         return jsonify({'error': 'Failed to fetch user details'}), 500
 
-# Update User Settings Route
-@app.route('/settings', methods=['POST'], endpoint='update_settings')  # Unique endpoint name
-def update_settings():
+# Update User Settings Route (Requires Token)
+@app.route('/settings', methods=['POST'], endpoint='update_settings')
+@token_required()
+def update_settings(current_user):
     try:
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
-        user_id = 1  # Replace with a valid user_id for testing
-        user = User.query.get(user_id)
-
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-
         if 'email_notifications' in data:
-            user.email_notifications = data['email_notifications']
+            current_user.email_notifications = data['email_notifications']
         if 'dark_mode' in data:
-            user.dark_mode = data['dark_mode']
+            current_user.dark_mode = data['dark_mode']
 
         db.session.commit()
         return jsonify({'message': 'Settings updated successfully'}), 200
@@ -616,12 +586,12 @@ def update_settings():
         print(f"Error updating settings: {e}")
         return jsonify({'error': 'Failed to update settings'}), 500
 
-# Get User Items Route
-@app.route('/user/items', methods=['GET'], endpoint='get_user_items')  # Unique endpoint name
-def get_user_items():
+# Get User Items Route (Requires Token)
+@app.route('/user/items', methods=['GET'], endpoint='get_user_items')
+@token_required()
+def get_user_items(current_user):
     try:
-        user_id = 2  # Replace with a valid user_id for testing
-        items = Item.query.filter_by(user_id=user_id).all()
+        items = Item.query.filter_by(user_id=current_user.id).all()
 
         items_data = [item.to_dict() for item in items]
         return jsonify(items_data), 200
@@ -629,9 +599,9 @@ def get_user_items():
         print(f"Error fetching user items: {e}")
         return jsonify({'error': 'Failed to fetch user items'}), 500
 
-# Admin API User Route
-@app.route('/api/user', methods=['GET'], endpoint='get_user_v2') 
-# @token_required()
+# Admin API User Route (Requires Token and Admin Role)
+@app.route('/api/user', methods=['GET'], endpoint='get_user_v2')
+@token_required(roles=['admin'])
 def get_user_v2(current_user):
     try:
         return jsonify({
@@ -644,6 +614,7 @@ def get_user_v2(current_user):
         print(f"Error fetching user details: {e}")
         return jsonify({'error': 'Failed to fetch user details'}), 500
 
+# Contact Us Route
 @app.route('/contact-us', methods=['POST'])
 def contact_us():
     data = request.get_json()
@@ -658,7 +629,7 @@ def contact_us():
     body = f"Name: {name}\nEmail: {email}\nMessage: {message}"
 
     try:
-        msg = Message(subject, recipients=("EMAIL_ADDRESS"))
+        msg = Message(subject, recipients=["EMAIL_ADDRESS"])
         msg.body = body
         mail.send(msg)
         return jsonify({'message': 'Your message has been sent successfully!'}), 200
