@@ -74,40 +74,40 @@ def calculate_cost(distance, weight):
 # Function to calculate distance using OSRM API
 def calculate_osrm_distance(pickup_location, delivery_location):
     try:
-        print(f"Calculating distance between {pickup_location} and {delivery_location}")  # Debugging
+        print(f"Calculating distance between {pickup_location} and {delivery_location}")  
 
         def geocode_location(address):
-            print(f"Geocoding address: {address}")  # Debugging
+            print(f"Geocoding address: {address}")  
             url = f"https://nominatim.openstreetmap.org/search?q={address}&format=json&limit=1"
-            response = requests.get(url, headers={"User-Agent": "SendIt-App"})  # Add a user-agent header
+            response = requests.get(url, headers={"User-Agent": "SendIt-App"}) 
             if response.status_code != 200 or not response.json():
                 raise ValueError(f"Location not found or address is too vague: {address}")
             data = response.json()
-            print(f"Geocoding result: {data}")  # Debugging
+            print(f"Geocoding result: {data}")  
             return {
                 "lat": float(data[0]['lat']),
                 "lon": float(data[0]['lon'])
             }
 
         pickup_coords = geocode_location(pickup_location)
-        print(f"Pickup coordinates: {pickup_coords}")  # Debugging
+        print(f"Pickup coordinates: {pickup_coords}")  
 
         delivery_coords = geocode_location(delivery_location)
-        print(f"Delivery coordinates: {delivery_coords}")  # Debugging
+        print(f"Delivery coordinates: {delivery_coords}")  
 
         osrm_url = f"http://router.project-osrm.org/route/v1/driving/{pickup_coords['lon']},{pickup_coords['lat']};{delivery_coords['lon']},{delivery_coords['lat']}?overview=false"
-        print(f"OSRM URL: {osrm_url}")  # Debugging
+        print(f"OSRM URL: {osrm_url}")  
 
         osrm_response = requests.get(osrm_url)
-        print(f"OSRM response status: {osrm_response.status_code}")  # Debugging
-        print(f"OSRM response data: {osrm_response.json()}")  # Debugging
+        print(f"OSRM response status: {osrm_response.status_code}")  
+        print(f"OSRM response data: {osrm_response.json()}")  
 
         if osrm_response.status_code != 200 or 'routes' not in osrm_response.json():
             raise ValueError("Route could not be calculated")
 
         osrm_data = osrm_response.json()
         distance_km = osrm_data['routes'][0]['legs'][0]['distance'] / 1000
-        print(f"Calculated distance: {distance_km} km")  # Debugging
+        print(f"Calculated distance: {distance_km} km")  
         return round(distance_km, 2) 
 
     except Exception as e:
@@ -319,16 +319,21 @@ def reset_password(token):
         return jsonify({"message": "Password successfully reset."}), 200
     
 # Fetch Parcels Route
-@app.route('/parcels', methods=['GET'], endpoint='fetch_parcels')  # Unique endpoint name
+@app.route('/parcels', methods=['GET'], endpoint='fetch_parcels')  
 def fetch_parcels():
     status = request.args.get('status')
     user_id = request.args.get('user_id')
 
-    query = Parcel.query
+    # Ensure user_id is provided
+    if not user_id:
+        return jsonify({'error': 'user_id is required to fetch parcels'}), 400
+
+    # Filter parcels by user_id
+    query = Parcel.query.filter_by(user_id=user_id)
+
+    # Optionally filter by status if provided
     if status:
         query = query.filter_by(status=status)
-    if user_id:
-        query = query.filter_by(user_id=user_id)
 
     parcels = query.all()
     return jsonify([parcel.to_dict() for parcel in parcels])
@@ -497,7 +502,7 @@ def update_parcel_status(parcel_id):
 @app.route('/parcels/<int:parcel_id>', methods=['PATCH'], endpoint='patch_parcel')
 def patch_parcel(parcel_id):
     try:
-        print(f"Received update request for parcel {parcel_id}")  # Debugging
+        print(f"Received update request for parcel {parcel_id}")  
         parcel = Parcel.query.get_or_404(parcel_id)
 
         # Check if the parcel has already been delivered
@@ -506,7 +511,7 @@ def patch_parcel(parcel_id):
 
         # Get the JSON data from the request
         data = request.get_json()
-        print(f"Received data: {data}")  # Debugging
+        print(f"Received data: {data}")  
 
         # Update the destination if provided
         if 'destination' in data:
@@ -515,7 +520,7 @@ def patch_parcel(parcel_id):
 
             # Recalculate distance if the destination is updated
             if new_destination != old_destination:
-                print(f"Recalculating distance for new destination: {new_destination}")  # Debugging
+                print(f"Recalculating distance for new destination: {new_destination}")  
                 distance = calculate_osrm_distance(parcel.pickup_location, new_destination)
                 if distance is None:
                     return jsonify({'error': 'Failed to calculate distance. Please provide a more specific address.'}), 400
