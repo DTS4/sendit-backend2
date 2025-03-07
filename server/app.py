@@ -79,7 +79,7 @@ def calculate_osrm_distance(pickup_location, delivery_location):
         def geocode_location(address):
             print(f"Geocoding address: {address}")  
             url = f"https://nominatim.openstreetmap.org/search?q={address}&format=json&limit=1"
-            response = requests.get(url, headers={"User-Agent": "SendIt-App"}) 
+            response = requests.get(url, headers={"User-Agent": "SendIt-App"})  # Add a user-agent header
             if response.status_code != 200 or not response.json():
                 raise ValueError(f"Location not found or address is too vague: {address}")
             data = response.json()
@@ -319,21 +319,16 @@ def reset_password(token):
         return jsonify({"message": "Password successfully reset."}), 200
     
 # Fetch Parcels Route
-@app.route('/parcels', methods=['GET'], endpoint='fetch_parcels')  
+@app.route('/parcels', methods=['GET'], endpoint='fetch_parcels')  # Unique endpoint name
 def fetch_parcels():
     status = request.args.get('status')
     user_id = request.args.get('user_id')
 
-    # Ensure user_id is provided
-    if not user_id:
-        return jsonify({'error': 'user_id is required to fetch parcels'}), 400
-
-    # Filter parcels by user_id
-    query = Parcel.query.filter_by(user_id=user_id)
-
-    # Optionally filter by status if provided
+    query = Parcel.query
     if status:
         query = query.filter_by(status=status)
+    if user_id:
+        query = query.filter_by(user_id=user_id)
 
     parcels = query.all()
     return jsonify([parcel.to_dict() for parcel in parcels])
