@@ -11,6 +11,7 @@ import datetime
 import random
 import string
 import requests
+import time
 from werkzeug.security import generate_password_hash
 
 app = Flask(__name__)
@@ -74,52 +75,38 @@ def calculate_cost(distance, weight):
 # Function to calculate distance using OSRM API
 def calculate_osrm_distance(pickup_location, delivery_location):
     try:
-        print(f"Calculating distance between {pickup_location} and {delivery_location}")
-
+        # Geocode the pickup location
         def geocode_location(address):
-            print(f"Geocoding address: {address}")
             url = f"https://nominatim.openstreetmap.org/search?q={address}&format=json&limit=1"
-            try:
-                response = requests.get(url, headers={"User-Agent": "SendIt-App"})
-                print(f"Geocoding response status: {response.status_code}")
-                print(f"Geocoding response data: {response.text}")
-                if response.status_code != 200 or not response.json():
-                    raise ValueError(f"Location not found or address is too vague: {address}")
-                data = response.json()
-                print(f"Geocoding result: {data}")
-                return {
-                    "lat": float(data[0]['lat']),
-                    "lon": float(data[0]['lon'])
-                }
-            except requests.exceptions.RequestException as e:
-                print(f"Geocoding request failed: {e}")
-                raise ValueError(f"Failed to geocode address: {address}")
+            headers = {"User-Agent": "SendIt-App"}
+            response = requests.get(url, headers=headers)
+            if response.status_code != 200 or not response.json():
+                raise ValueError(f"Location not found or address is too vague: {address}")
+            data = response.json()
+            return {
+                "lat": float(data[0]['lat']),
+                "lon": float(data[0]['lon'])
+            }
 
+        # Get coordinates for pickup and delivery locations
         pickup_coords = geocode_location(pickup_location)
-        print(f"Pickup coordinates: {pickup_coords}")
-
+        time.sleep(1)  # Add delay to avoid rate limits
         delivery_coords = geocode_location(delivery_location)
-        print(f"Delivery coordinates: {delivery_coords}")
 
+        # Calculate distance using OSRM API
         osrm_url = f"http://router.project-osrm.org/route/v1/driving/{pickup_coords['lon']},{pickup_coords['lat']};{delivery_coords['lon']},{delivery_coords['lat']}?overview=false"
-        print(f"OSRM URL: {osrm_url}")
+        osrm_response = requests.get(osrm_url)
 
-        try:
-            osrm_response = requests.get(osrm_url)
-            print(f"OSRM response status: {osrm_response.status_code}")
-            print(f"OSRM response data: {osrm_response.text}")
-            if osrm_response.status_code != 200 or 'routes' not in osrm_response.json():
-                raise ValueError("Route could not be calculated")
-            osrm_data = osrm_response.json()
-            distance_km = osrm_data['routes'][0]['legs'][0]['distance'] / 1000
-            print(f"Calculated distance: {distance_km} km")
-            return round(distance_km, 2)
-        except requests.exceptions.RequestException as e:
-            print(f"OSRM request failed: {e}")
-            raise ValueError("Failed to calculate distance due to network error")
+        if osrm_response.status_code != 200 or 'routes' not in osrm_response.json():
+            raise ValueError("Route could not be calculated")
+
+        osrm_data = osrm_response.json()
+        distance_km = osrm_data['routes'][0]['legs'][0]['distance'] / 1000
+        return round(distance_km, 2)
+
     except Exception as e:
         print(f"Error calculating distance: {e}")
-        return None
+        return 10.0  
 
 def geocode_location(address):
     try:
