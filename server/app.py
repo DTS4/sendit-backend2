@@ -79,15 +79,20 @@ def calculate_osrm_distance(pickup_location, delivery_location):
         def geocode_location(address):
             print(f"Geocoding address: {address}")  
             url = f"https://nominatim.openstreetmap.org/search?q={address}&format=json&limit=1"
-            response = requests.get(url, headers={"User-Agent": "SendIt-App"})  # Add a user-agent header
-            if response.status_code != 200 or not response.json():
-                raise ValueError(f"Location not found or address is too vague: {address}")
-            data = response.json()
-            print(f"Geocoding result: {data}")  
-            return {
-                "lat": float(data[0]['lat']),
-                "lon": float(data[0]['lon'])
-            }
+            try:
+                response = requests.get(url, headers={"User-Agent": "SendIt-App"})
+                print(f"Geocoding response: {response.status_code}, {response.text}")  # Log the response
+                if response.status_code != 200 or not response.json():
+                    raise ValueError(f"Location not found or address is too vague: {address}")
+                data = response.json()
+                print(f"Geocoding result: {data}")  
+                return {
+                    "lat": float(data[0]['lat']),
+                    "lon": float(data[0]['lon'])
+                }
+            except requests.exceptions.RequestException as e:
+                print(f"Geocoding request failed: {e}")
+                raise ValueError(f"Failed to geocode address: {address}")
 
         pickup_coords = geocode_location(pickup_location)
         print(f"Pickup coordinates: {pickup_coords}")  
@@ -98,17 +103,21 @@ def calculate_osrm_distance(pickup_location, delivery_location):
         osrm_url = f"http://router.project-osrm.org/route/v1/driving/{pickup_coords['lon']},{pickup_coords['lat']};{delivery_coords['lon']},{delivery_coords['lat']}?overview=false"
         print(f"OSRM URL: {osrm_url}")  
 
-        osrm_response = requests.get(osrm_url)
-        print(f"OSRM response status: {osrm_response.status_code}")  
-        print(f"OSRM response data: {osrm_response.json()}")  
+        try:
+            osrm_response = requests.get(osrm_url)
+            print(f"OSRM response status: {osrm_response.status_code}")  
+            print(f"OSRM response data: {osrm_response.json()}")  
 
-        if osrm_response.status_code != 200 or 'routes' not in osrm_response.json():
-            raise ValueError("Route could not be calculated")
+            if osrm_response.status_code != 200 or 'routes' not in osrm_response.json():
+                raise ValueError("Route could not be calculated")
 
-        osrm_data = osrm_response.json()
-        distance_km = osrm_data['routes'][0]['legs'][0]['distance'] / 1000
-        print(f"Calculated distance: {distance_km} km")  
-        return round(distance_km, 2) 
+            osrm_data = osrm_response.json()
+            distance_km = osrm_data['routes'][0]['legs'][0]['distance'] / 1000
+            print(f"Calculated distance: {distance_km} km")  
+            return round(distance_km, 2) 
+        except requests.exceptions.RequestException as e:
+            print(f"OSRM request failed: {e}")
+            raise ValueError("Failed to calculate distance due to network error")
 
     except Exception as e:
         print(f"Error calculating distance: {e}")
